@@ -3,10 +3,48 @@ import { InputText } from 'primereact/inputtext';
 import { Card } from 'primereact/card';
 import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { Button } from 'primereact/button';
+import { Toast } from 'primereact/toast';
+import { useRef } from 'react';
 import NavbarAuth from "../../components/NavbarAuth";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+    const [loading, setLoading] = useState(false);
+    const toast = useRef<any>(null);
+    const { signIn } = useAuth();
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setLoading(true);
+
+        try {
+            const { success, message } = await signIn(email, password);
+            
+            if (success) {
+                // Redireccionar al dashboard
+                window.location.href = "/dashboard";
+            } else {
+                toast.current.show({
+                    severity: 'error',
+                    summary: 'Error',
+                    detail: message,
+                    life: 3000
+                });
+            }
+        } catch (error) {
+            toast.current.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'Ha ocurrido un error inesperado',
+                life: 3000
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const cardHeader = (
         <div className="text-center pt-4 pb-2">
@@ -28,6 +66,7 @@ export default function LoginPage() {
 
     return (
         <div className="auth-page min-h-screen flex flex-col bg-dark">
+            <Toast ref={toast} />
             <NavbarAuth />
 
             <main className="flex-1 bg-gradient-to-br from-secondary to-dark-light flex items-center justify-center p-6">
@@ -37,7 +76,7 @@ export default function LoginPage() {
                     className="w-full max-w-md shadow-xl bg-dark-card border border-dark-border text-light rounded-xl"
                 >
                     <div className="p-4">
-                        <form className="space-y-5">
+                        <form onSubmit={handleSubmit} className="space-y-5">
                             <div className="space-y-2">
                                 <div className="flex justify-between">
                                     <label htmlFor="email" className="text-light font-medium">Correo electrónico</label>
@@ -47,6 +86,8 @@ export default function LoginPage() {
                                     type="email"
                                     placeholder="U20XXXXXXX@upc.edu.pe"
                                     required
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
                                     className="w-full bg-dark-light text-light border border-dark-border px-3 py-3 rounded-md"
                                 />
                             </div>
@@ -64,6 +105,8 @@ export default function LoginPage() {
                                         type={showPassword ? "text" : "password"}
                                         placeholder="••••••••"
                                         required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
                                         className="w-full bg-dark-light text-light border border-dark-border px-3 py-3 rounded-md"
                                     />
                                     <Button
@@ -77,9 +120,11 @@ export default function LoginPage() {
 
                             <div className="pt-2">
                                 <Button
-                                    label="Iniciar Sesión"
+                                    label={loading ? "Iniciando sesión..." : "Iniciar Sesión"}
                                     type="submit"
+                                    disabled={loading}
                                     className="w-full bg-primary text-light hover:bg-primary-hover py-2"
+                                    icon={loading ? "pi pi-spin pi-spinner" : ""}
                                 />
                             </div>
                         </form>

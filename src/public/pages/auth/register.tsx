@@ -1,71 +1,125 @@
-import { useState } from "react"
+import { useState } from "react";
 import { InputText } from 'primereact/inputtext';
+import { InputNumber } from 'primereact/inputnumber';
 import { Card } from 'primereact/card';
-import { EyeIcon, EyeOffIcon } from "lucide-react"
+import { EyeIcon, EyeOffIcon } from "lucide-react";
 import { Button } from 'primereact/button';
 import { RadioButton } from 'primereact/radiobutton';
 import { Dropdown } from 'primereact/dropdown';
+import { Toast } from 'primereact/toast';
+import { useRef } from 'react';
+import { UserRole, UserStatus } from "../../../user/types/User";
 import NavbarAuth from "../../components/NavbarAuth";
 
 export default function RegisterPage() {
-  const [showPassword, setShowPassword] = useState(false)
-  const [step, setStep] = useState(1)
+  const toast = useRef<any>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  
+  // Estado del formulario ajustado según el tipo User
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    role: "estudiante",
+    role: "student" as UserRole,
     firstName: "",
     lastName: "",
     gender: "",
-    educationLevel: ""
-  })
+    semesterNumber: 1,
+    academicYear: new Date().getFullYear().toString(),
+    bio: "",
+    phone: "",
+    status: "active" as UserStatus,
+    avatar: ""
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
-  }
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const handleDropdownChange = (name: string) => (e: { value: string }) => {
-    setFormData((prev) => ({ ...prev, [name]: e.value }))
-  }
+    setFormData((prev) => ({ ...prev, [name]: e.value }));
+  };
 
   const handleRoleChange = (e: { value: string }) => {
-    setFormData((prev) => ({ ...prev, role: e.value }))
-  }
+    // Asegurarse de que el rol sea uno de los valores permitidos en UserRole
+    const role = e.value === 'student' || e.value === 'tutor' ? e.value as UserRole : 'student';
+    setFormData((prev) => ({ ...prev, role }));
+  };
+
+  const handleSemesterChange = (e: { value: number | null | undefined }) => {
+    setFormData((prev) => ({ 
+      ...prev, 
+      semesterNumber: e.value !== null && e.value !== undefined ? e.value : 1
+    }));
+  };
 
   const handleSubmitStep1 = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    setStep(2)
-  }
+    e.preventDefault();
+    // Validación básica antes de pasar al paso 2
+    if (!formData.email || !formData.password) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Campos requeridos',
+        detail: 'Por favor completa todos los campos obligatorios',
+        life: 3000
+      });
+      return;
+    }
+    setStep(2);
+  };
 
-  const handleSubmitStep2 = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    // Aquí iría la lógica para enviar los datos al servidor
-    console.log("Datos de registro:", formData)
-    // Navegar a la página de éxito
-    window.location.href = "/register/success"
-  }
-
+  const handleSubmitStep2 = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      if (!formData.firstName || !formData.lastName || !formData.gender) {
+        throw new Error("Por favor completa todos los campos obligatorios");
+      }
+      
+      
+      localStorage.setItem('pendingRegistration', JSON.stringify({
+        email: formData.email,
+        userData: {
+          ...formData,
+          password: formData.password,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        }
+      }));
+      
+      // Redirigir a la página de verificación primero
+      window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`;
+      
+    } catch (error: any) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Error de registro',
+        detail: error.message || 'No se pudo completar el registro. Por favor, intenta nuevamente.',
+        life: 3000
+      });
+      setLoading(false);
+    }
+  };
   const goBack = () => {
-    setStep(1)
-  }
+    setStep(1);
+  };
 
+  // Opciones para los campos de selección
   const genderOptions = [
     { label: 'Masculino', value: 'masculino' },
     { label: 'Femenino', value: 'femenino' },
     { label: 'Otro', value: 'otro' },
     { label: 'Prefiero no decir', value: 'prefiero-no-decir' }
-  ]
+  ];
 
-  const educationOptions = [
-    { label: 'Primaria', value: 'primaria' },
-    { label: 'Secundaria', value: 'secundaria' },
-    { label: 'Bachillerato', value: 'bachillerato' },
-    { label: 'Universidad', value: 'universidad' },
-    { label: 'Postgrado', value: 'postgrado' }
-  ]
+  const roleOptions = [
+    { label: 'Estudiante', value: 'student' as UserRole },
+    { label: 'Tutor', value: 'tutor' as UserRole }
+  ];
 
-  // Modificado para reducir espacio
   const cardHeader = (
     <div className="text-center pt-3 pb-1">
       <h2 className="text-2xl font-bold text-light">Crear una cuenta</h2>
@@ -79,7 +133,6 @@ export default function RegisterPage() {
     </div>
   );
 
-  // Modificado para reducir espacio
   const cardFooter = (
     <div className="flex justify-center py-1">
       <p className="text-sm text-center text-light">
@@ -92,8 +145,8 @@ export default function RegisterPage() {
   );
 
   return (
-    
     <div className="auth-page min-h-screen flex flex-col bg-dark">
+      <Toast ref={toast} />
       <NavbarAuth />
       <main className="flex-1 bg-gradient-to-br from-secondary to-dark-light flex items-center justify-center p-6">
         <Card
@@ -142,31 +195,25 @@ export default function RegisterPage() {
                 <div className="space-y-2">
                   <label className="text-light block mb-2 text-center">Tipo de cuenta</label>
                   <div className="flex gap-8 justify-center">
-                    <div className="flex items-center">
-                      <RadioButton
-                        inputId="estudiante"
-                        name="role"
-                        value="estudiante"
-                        onChange={handleRoleChange}
-                        checked={formData.role === 'estudiante'}
-                        className="mr-2"
-                        style={{ accentColor: "red" }}
-                      />
-                      <label htmlFor="estudiante" className="text-light">Estudiante</label>
-                    </div>
-                    <div className="flex items-center">
-                      <RadioButton
-                        inputId="tutor"
-                        name="role"
-                        value="tutor"
-                        onChange={handleRoleChange}
-                        checked={formData.role === 'tutor'}
-                        className="mr-2"
-                        style={{ accentColor: "red" }}
-                      />
-                      <label htmlFor="tutor" className="text-light">Tutor</label>
-                    </div>
+                    {roleOptions.map((option) => (
+                      <div className="flex items-center" key={option.value}>
+                        <RadioButton
+                          inputId={option.value}
+                          name="role"
+                          value={option.value}
+                          onChange={handleRoleChange}
+                          checked={formData.role === option.value}
+                          className="mr-2"
+                        />
+                        <label htmlFor={option.value} className="text-light">{option.label}</label>
+                      </div>
+                    ))}
                   </div>
+                  {formData.role === 'tutor' && (
+                    <p className="text-xs text-center text-yellow-500 mt-2">
+                      Para ser tutor, necesitarás seleccionar un plan después del registro
+                    </p>
+                  )}
                 </div>
                 <Button
                   label="Continuar"
@@ -177,8 +224,8 @@ export default function RegisterPage() {
             </div>
           ) : (
             <div className="p-4">
-              <form onSubmit={handleSubmitStep2} className="space-y-3"> {/* Reducido de space-y-4 a space-y-3 */}
-                <div className="space-y-1"> {/* Reducido de space-y-2 a space-y-1 */}
+              <form onSubmit={handleSubmitStep2} className="space-y-3">
+                <div className="space-y-1">
                   <label htmlFor="firstName" className="text-light">Nombre</label>
                   <InputText
                     id="firstName"
@@ -190,7 +237,7 @@ export default function RegisterPage() {
                     className="w-full bg-dark-light text-light border border-dark-border px-3 py-2 rounded-md"
                   />
                 </div>
-                <div className="space-y-1"> {/* Reducido de space-y-2 a space-y-1 */}
+                <div className="space-y-1">
                   <label htmlFor="lastName" className="text-light">Apellido</label>
                   <InputText
                     id="lastName"
@@ -202,7 +249,7 @@ export default function RegisterPage() {
                     className="w-full bg-dark-light text-light border border-dark-border px-3 py-2 rounded-md"
                   />
                 </div>
-                <div className="space-y-1"> {/* Reducido de space-y-2 a space-y-1 */}
+                <div className="space-y-1">
                   <label htmlFor="gender" className="text-light">Género</label>
                   <Dropdown
                     id="gender"
@@ -211,30 +258,47 @@ export default function RegisterPage() {
                     onChange={handleDropdownChange('gender')}
                     placeholder="Selecciona una opción"
                     className="w-full bg-dark-light text-light border border-dark-border rounded-md"
+                    required
                   />
                 </div>
-                <div className="space-y-1"> {/* Reducido de space-y-2 a space-y-1 */}
-                  <label htmlFor="educationLevel" className="text-light">Nivel educativo</label>
-                  <Dropdown
-                    id="educationLevel"
-                    value={formData.educationLevel}
-                    options={educationOptions}
-                    onChange={handleDropdownChange('educationLevel')}
-                    placeholder="Selecciona una opción"
+                <div className="space-y-1">
+                  <label htmlFor="semesterNumber" className="text-light">Semestre (1-10)</label>
+                  <InputNumber
+                    id="semesterNumber"
+                    value={formData.semesterNumber}
+                    onValueChange={handleSemesterChange}
+                    placeholder="Selecciona el semestre"
+                    min={1}
+                    max={10}
+                    showButtons
+                    buttonLayout="horizontal"
+                    decrementButtonClassName="p-button-danger"
+                    incrementButtonClassName="p-button-danger"
+                    incrementButtonIcon="pi pi-plus"
+                    decrementButtonIcon="pi pi-minus"
+                    mode="decimal"
+                    useGrouping={false}
+                    minFractionDigits={0}
+                    maxFractionDigits={0}
                     className="w-full bg-dark-light text-light border border-dark-border rounded-md"
+                    inputClassName="bg-dark-light text-light"
                   />
                 </div>
+                
                 <div className="flex gap-3 pt-2">
                   <Button
                     label="Atrás"
                     type="button"
                     onClick={goBack}
                     className="w-full flex-1 bg-dark-light border border-dark-border text-light hover:bg-dark py-2 text-sm"
+                    disabled={loading}
                   />
                   <Button
-                    label="Completar Registro"
+                    label={loading ? "Registrando..." : "Completar Registro"}
                     type="submit"
                     className="w-full flex-1 bg-primary text-light hover:bg-primary-hover py-2 text-sm"
+                    disabled={loading}
+                    icon={loading ? "pi pi-spin pi-spinner" : ""}
                   />
                 </div>
               </form>
@@ -243,5 +307,5 @@ export default function RegisterPage() {
         </Card>
       </main>
     </div>
-  )
+  );
 }
