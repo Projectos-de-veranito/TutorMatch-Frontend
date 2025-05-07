@@ -2,15 +2,15 @@ import React from 'react';
 import { User } from '../types/User';
 
 interface UserProfileProps {
-  user: Pick<User, 'fullName' | 'semesterNumber' | 'academicYear' | 'avatar'>;
+  user: Pick<User, 'firstName' | 'lastName' | 'semesterNumber' | 'academicYear' | 'avatar'>;
 }
 
 const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
   // Using destructuring with the properties from our User type
-  const { fullName, semesterNumber, academicYear, avatar } = user;
+  const { firstName, lastName, semesterNumber, academicYear, avatar } = user;
   
   // Get first letter of name for avatar placeholder
-  const avatarInitial = fullName?.charAt(0) || 'U';
+  const avatarInitial = firstName?.charAt(0) || 'U' + lastName?.charAt(0) || 'U';
   
   return (
     <section className="mb-8">
@@ -20,7 +20,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
             {avatar ? (
               <img 
                 src={avatar} 
-                alt={fullName} 
+                alt={firstName + ' ' + lastName} 
                 className="h-full w-full rounded-full object-cover"
               />
             ) : (
@@ -28,7 +28,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user }) => {
             )}
           </div>
           <div className="flex-1">
-            <h2 className="text-xl font-semibold text-white">Hello, {fullName}!</h2>
+            <h2 className="text-xl font-semibold text-white">Hello, {firstName + lastName}!</h2>
             <div className="flex items-center text-light-gray">
               <span>{semesterNumber}° Semestre · {academicYear}</span>
             </div>

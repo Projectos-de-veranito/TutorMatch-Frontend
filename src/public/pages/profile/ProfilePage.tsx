@@ -1,41 +1,189 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { User as UserType } from '../../../user/types/User';
 import Navbar from '../../../dashboard/components/Navbar';
 import Footer from '../../components/Footer';
 import EditProfileModal from '../../../user/components/EditProfileModal';
-import { Edit, LogOut, User } from 'lucide-react';
+import DeleteAccountModal from '../../../user/components/DeleteProfileModal';
+import { Edit, Loader, LogOut, Phone, Trash2, User } from 'lucide-react';
+import { UserService } from '../../../user/services/UserService';
+import { Toast } from 'primereact/toast';
+import { useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../hooks/useAuth';
+import { AuthService } from '../../services/authService';
 
 const ProfilePage: React.FC = () => {
-  const user: UserType = {
-    id: 1,
-    firstName: 'Carlos',
-    lastName: 'Domínguez',
-    fullName: 'Carlos Domínguez',
-    email: 'U202212345@upc.edu.pe',
-    avatar: '/assets/imgs/avatar-placeholder.png',
-    role: 'tutor',
-    status: 'active',
-    semesterNumber: 5,
-    academicYear: '2023-2024',
-    phone: '+51 987654321',
-    bio: 'Apasionado por la enseñanza y el aprendizaje continuo. Me encanta ayudar a otros a alcanzar sus metas académicas.',
-    createdAt: new Date('2023-01-01'),
-    updatedAt: new Date(),
-  };
-
-  const handleSaveProfile = (updatedUser: UserType) => {
-    console.log('Perfil actualizado:', updatedUser);
-    // Aquí puedes manejar la lógica para guardar los cambios (API, estado global, etc.).
-  };
-
+  const [user, setUser] = useState<UserType | null>(null);
+  const [loading, setLoading] = useState(true);
   const [isEditModalVisible, setEditModalVisible] = useState(false);
+  const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [deletingAccount, setDeletingAccount] = useState(false);
+  const toast = useRef<any>(null);
+  const navigate = useNavigate();
+  const { signOut, user: authUser } = useAuth();
+
+  // Obtener los datos del usuario actual
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setLoading(true);
+
+        // Primero intentamos obtener el usuario del hook useAuth
+        if (authUser) {
+          setUser(authUser);
+          setLoading(false);
+          return;
+        }
+
+        // Si no está en el hook, intentamos obtenerlo desde AuthService
+        const currentUserId = AuthService.getCurrentUserId();
+        if (!currentUserId) {
+          // Si no hay ID de usuario, redirigir al login
+          toast.current?.show({
+            severity: 'error',
+            summary: 'Error',
+            detail: 'Sesión no encontrada. Por favor inicia sesión.',
+            life: 3000
+          });
+          navigate('/login');
+          return;
+        }
+
+        // Obtener el perfil completo desde AuthService
+        const userProfile = await AuthService.getCurrentUserProfile();
+        if (userProfile) {
+          setUser(userProfile);
+        } else {
+          // Como último recurso, intentar obtener desde el UserService
+          const userData = await UserService.getUserById(currentUserId);
+          setUser(userData);
+        }
+      } catch (error: any) {
+        console.error('Error al obtener datos del usuario:', error);
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Error',
+          detail: error.response?.data?.message || 'Error al cargar los datos del perfil',
+          life: 3000
+        });
+        // Si falla la obtención de datos, redirigir al login
+        navigate('/login');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [authUser, navigate]);
+
+  const handleSaveProfile = async (updatedUser: UserType) => {
+    try {
+      if (!user) {
+        throw new Error('No hay usuario para actualizar');
+      }
+
+      // Actualizar el perfil del usuario
+      await UserService.updateProfile(updatedUser);
+      setUser(updatedUser);
+
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Éxito',
+        detail: 'Perfil actualizado correctamente',
+        life: 3000
+      });
+    } catch (error: any) {
+      console.error('Error al actualizar perfil:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: error.response?.data?.message || 'Error al actualizar perfil',
+        life: 3000
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      const { success } = await signOut();
+      if (success) {
+        navigate('/login');
+      }
+    } catch (error) {
+      console.error('Error al cerrar sesión:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Error al cerrar sesión',
+        life: 3000
+      });
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+
+    setDeletingAccount(true);
+    try {
+      // Eliminar la cuenta del usuario
+      await UserService.deleteAccount(user.id);
+
+      // Cerrar sesión después de eliminar la cuenta
+      await signOut();
+
+      toast.current?.show({
+        severity: 'success',
+        summary: 'Cuenta eliminada',
+        detail: 'Tu cuenta ha sido eliminada correctamente',
+        life: 3000
+      });
+
+      // Redirigir al inicio después de un breve retraso
+      setTimeout(() => {
+        navigate('/');
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error al eliminar cuenta:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: error.response?.data?.message || 'Error al eliminar la cuenta',
+        life: 3000
+      });
+    } finally {
+      setDeletingAccount(false);
+      setDeleteModalVisible(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64">
+        <Loader className="animate-spin text-primary h-10 w-10 mb-4" />
+        <div className="text-white">Cargando datos del perfil...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-xl">No se encontró información del usuario</div>
+        </div>
+        <Footer />
+      </div>
+    );
+  }
 
   return (
     <>
+      <Toast ref={toast} />
       <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
         <Navbar />
         {/* Contenido principal */}
-        <div className="flex-1 flex items-center justify-center">
+        <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-[#2c2c2c] p-6 rounded-lg shadow-lg w-full max-w-4xl relative">
             {/* Botón de editar */}
             <button
@@ -46,17 +194,18 @@ const ProfilePage: React.FC = () => {
             </button>
 
             {/* Encabezado del perfil */}
-            <div className="flex items-center gap-6 mb-6">
+            <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
               <img
                 src={user.avatar || '/assets/imgs/avatar-placeholder.png'}
                 alt="Avatar"
                 className="w-24 h-24 rounded-full object-cover"
               />
-              <div>
-                <h1 className="text-3xl font-bold">{user.fullName}</h1>
+              <div className="text-center sm:text-left">
+                <h1 className="text-3xl font-bold">{user.firstName} {user.lastName}</h1>
                 <p className="text-gray-400">{user.email}</p>
                 <p className="text-sm text-gray-500">Miembro desde {user.createdAt.toLocaleDateString('es-ES')}</p>
-                <p className="text-sm text-red-600">{user.role === 'tutor' ? 'Tutor' : 'Estudiante'}</p>
+                <p className="text-sm text-red-600">{user.role === 'tutor' ? 'Tutor' : 'Estudiante'} • {user.semesterNumber}° Semestre</p>
+                <p className='text-sm text-gray-500'>{user.academicYear}</p>
               </div>
             </div>
 
@@ -71,11 +220,42 @@ const ProfilePage: React.FC = () => {
               <p className="text-gray-300 text-sm">{user.bio || 'Sin biografía disponible.'}</p>
             </div>
 
+            <div className="mb-6">
+              <h2 className="text-xl font-semibold mb-2 flex items-center gap-2">
+                <span>
+                  <Phone />
+                </span>
+                Contacto
+              </h2>
+              <p className="text-gray-300 text-sm">
+                {user.phone ? (
+                  <a
+                    href={`https://wa.me/51${user.phone.replace(/\s/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"                  >
+                    +51 {user.phone.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}
+                  </a>
+                ) : (
+                  'No hay número de teléfono disponible.'
+                )}
+              </p>
+            </div>
+
             {/* Opciones de perfil */}
             <div>
               <div className="flex gap-4">
-                <button className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-all text-sm flex items-center gap-2">
+                <button
+                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-all text-sm flex items-center gap-2"
+                  onClick={handleLogout}
+                >
                   <LogOut /> Cerrar sesión
+                </button>
+
+                <button
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-sm flex items-center gap-2"
+                  onClick={() => setDeleteModalVisible(true)}
+                >
+                  <Trash2 /> Eliminar cuenta
                 </button>
               </div>
             </div>
@@ -90,6 +270,14 @@ const ProfilePage: React.FC = () => {
           onHide={() => setEditModalVisible(false)}
           user={user}
           onSave={handleSaveProfile}
+        />
+
+        {/* Modal de confirmación para eliminar cuenta */}
+        <DeleteAccountModal
+          visible={isDeleteModalVisible}
+          onHide={() => setDeleteModalVisible(false)}
+          onConfirm={handleDeleteAccount}
+          loading={deletingAccount}
         />
       </div>
     </>
