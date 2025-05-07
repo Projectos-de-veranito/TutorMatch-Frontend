@@ -10,12 +10,14 @@ import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import { UserRole, UserStatus } from "../../../user/types/User";
 import NavbarAuth from "../../components/NavbarAuth";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function RegisterPage() {
   const toast = useRef<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const { signUp } = useAuth();
   
   // Estado del formulario ajustado según el tipo User
   const [formData, setFormData] = useState({
@@ -26,9 +28,10 @@ export default function RegisterPage() {
     lastName: "",
     gender: "",
     semesterNumber: 1,
-    academicYear: new Date().getFullYear().toString(),
+    academicYear: "",
     bio: "",
     phone: "",
+    tutor_id: "",
     status: "active" as UserStatus,
     avatar: ""
   });
@@ -79,19 +82,59 @@ export default function RegisterPage() {
         throw new Error("Por favor completa todos los campos obligatorios");
       }
       
-      
+      // Almacenar los datos en localStorage para el proceso de verificación
       localStorage.setItem('pendingRegistration', JSON.stringify({
         email: formData.email,
         userData: {
           ...formData,
-          password: formData.password,
+          // Convertir semesterNumber a número explícitamente
+          semesterNumber: typeof formData.semesterNumber === 'number' 
+            ? formData.semesterNumber 
+            : Number(formData.semesterNumber) || 1,
           createdAt: new Date(),
           updatedAt: new Date()
         }
       }));
+  
+      // Preparar datos completos para el registro
+      const userData = {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        gender: formData.gender,
+        semesterNumber: typeof formData.semesterNumber === 'number' 
+          ? formData.semesterNumber 
+          : Number(formData.semesterNumber) || 1,
+        role: formData.role
+      };
+  
+      console.log('Datos a enviar (ajustados):', {
+        email: formData.email,
+        password: formData.password,
+        ...userData
+      });
       
-      // Redirigir a la página de verificación primero
-      window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`;
+      // Llamada al endpoint de registro con datos completos
+      const { success, message } = await signUp(
+        formData.email, 
+        formData.password, 
+        userData
+      );
+      
+      if (success) {
+        toast.current.show({
+          severity: 'success',
+          summary: 'Registro iniciado',
+          detail: 'Tu cuenta está siendo creada. Por favor, verifica tu correo electrónico.',
+          life: 3000
+        });
+        
+        // Redirigir a la página de verificación
+        setTimeout(() => {
+          window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`;
+        }, 1500);
+      } else {
+        throw new Error(message || "Error al registrar usuario");
+      }
       
     } catch (error: any) {
       toast.current.show({
@@ -100,19 +143,21 @@ export default function RegisterPage() {
         detail: error.message || 'No se pudo completar el registro. Por favor, intenta nuevamente.',
         life: 3000
       });
+    } finally {
       setLoading(false);
     }
   };
+  
   const goBack = () => {
     setStep(1);
   };
 
   // Opciones para los campos de selección
   const genderOptions = [
-    { label: 'Masculino', value: 'masculino' },
-    { label: 'Femenino', value: 'femenino' },
-    { label: 'Otro', value: 'otro' },
-    { label: 'Prefiero no decir', value: 'prefiero-no-decir' }
+    { label: 'Masculino', value: 'male' },
+    { label: 'Femenino', value: 'female' },
+    { label: 'Otro', value: 'other' },
+    { label: 'Prefiero no decir', value: 'preferredNotSay' }
   ];
 
   const roleOptions = [

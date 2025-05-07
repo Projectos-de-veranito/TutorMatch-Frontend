@@ -3,12 +3,13 @@ import { Dialog } from 'primereact/dialog';
 import { Dropdown } from 'primereact/dropdown';
 import { InputTextarea } from 'primereact/inputtextarea';
 import { Toast } from 'primereact/toast';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import { Course } from '../../course/types/Course';
 import { User } from '../../user/types/User';
 import TimeSlotSelectorBySection from '../../schedule/components/TimeSelectorBySection';
 import { SemesterService } from '../services/SemesterService';
-import { TutoringSession } from '../../tutoring/types/Tutoring';
 import { TutoringService } from '../../tutoring/services/TutoringService';
+import { TutoringImageService } from '../../tutoring/services/TutoringImageService';
 
 // Props para el componente modal
 interface CreateTutoringModalProps {
@@ -37,6 +38,8 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
   const [price, setPrice] = useState<number>(0);
   const [whatTheyWillLearn, setWhatTheyWillLearn] = useState<string>('');
   const [courseImage, setCourseImage] = useState<string | undefined>(undefined);
+  const [originalFile, setOriginalFile] = useState<File | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [imageUploaded, setImageUploaded] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isFormValid, setIsFormValid] = useState<boolean>(false);
@@ -135,48 +138,32 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     return false;
   };
 
-  // Convertir los time slots seleccionados al nuevo formato de availableTimes
-  const convertTimeSlotsToAvailableTimes = () => {
-    const formattedAvailableTimes: { 
-      dayOfWeek: number,
-      availableHours: {
-        start: string,
-        end: string
-      }[]
-    }[] = [];
-
-    // Objeto para agrupar horas por día
-    const timesByDay: { [day: number]: { start: string, end: string }[] } = {};
-
-    // Recorrer cada día y cada slot para agrupar las horas por día
+  // Convertir los time slots seleccionados al formato correcto para la API
+    // Actualiza la función convertTimeSlotsToApiFormat
+  const convertTimeSlotsToApiFormat = () => {
+    const availableTimesArray = [];
+  
+    // Recorrer cada día y cada slot
     for (let day of daysOfWeek) {
       const dayNumber = dayMapping[day];
-      timesByDay[dayNumber] = [];
-
+  
       for (let timeSlot of allTimeSlots) {
         if (availableTimes[day]?.[timeSlot]) {
           // Obtener las horas de inicio y fin del formato "HH-HH"
           const [startHour, endHour] = timeSlot.split('-');
           
-          timesByDay[dayNumber].push({
-            start: `${startHour}:00`,
-            end: `${endHour}:00`
+          // Mantener el formato snake_case para disponibilidad de horarios
+          // El servicio ya se encargará de la conversión adecuada
+          availableTimesArray.push({
+            day_of_week: dayNumber,
+            start_time: `${startHour}:00`,
+            end_time: `${endHour}:00`
           });
         }
       }
     }
-
-    // Convertir el objeto agrupado al formato final
-    for (const [dayNumber, hours] of Object.entries(timesByDay)) {
-      if (hours.length > 0) {
-        formattedAvailableTimes.push({
-          dayOfWeek: parseInt(dayNumber),
-          availableHours: hours
-        });
-      }
-    }
-
-    return formattedAvailableTimes;
+  
+    return availableTimesArray;
   };
 
   // Manejar subida de archivo
@@ -184,60 +171,132 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     const file = event.target.files?.[0];
 
     if (file) {
-      if (file.size > 1024 * 1024) {
-        setErrorMessage('El archivo es demasiado grande. El tamaño máximo permitido es de 1MB.');
+      if (file.size > 5 * 1024 * 1024) {
+        setErrorMessage('El archivo es demasiado grande. El tamaño máximo permitido es de 5MB.');
         setImageUploaded(false);
         return;
       }
 
-      if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
-        const reader = new FileReader();
-        reader.onload = (e: any) => {
-          setCourseImage(e.target.result);
-          setImageUploaded(true);
-          setErrorMessage('');
-        };
-        reader.readAsDataURL(file);
-      } else {
-        setErrorMessage('Tipo de archivo inválido. Por favor, seleccione un archivo PNG o JPEG.');
+      if (!['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'].includes(file.type)) {
+        setErrorMessage('Tipo de archivo inválido. Por favor, seleccione un archivo PNG, JPEG, GIF o WebP.');
         setImageUploaded(false);
+        return;
       }
+
+      // Guardar el archivo original para subirlo después
+      setOriginalFile(file);
+
+      // Mostrar vista previa
+      const reader = new FileReader();
+      reader.onload = (e: any) => {
+        setCourseImage(e.target.result);
+        setImageUploaded(true);
+        setErrorMessage('');
+      };
+      reader.readAsDataURL(file);
     }
   };
 
-  // Función para manejar la creación de la tutoría
+  // Reemplaza la función onConfirmAddTutoring con esta implementación
+  // Reemplaza la función onConfirmAddTutoring con esta implementación
   const onConfirmAddTutoring = async () => {
     if (!isFormValid || isSubmitting) return;
-
+  
     try {
       setIsSubmitting(true);
-
-      // Convertir los time slots seleccionados al nuevo formato
-      const formattedAvailableTimes = convertTimeSlotsToAvailableTimes();
-
-      // Crear el objeto TutoringSession
-      const newTutoring = new TutoringSession({
-        tutorId: currentUser.id,
-        courseId: selectedCourse?.id,
-        title: selectedCourse?.name || '',
+  
+      // Verificar que tenemos un course_id válido
+      if (!selectedCourse?.id) {
+        toast.current?.show({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Por favor selecciona un curso válido',
+          life: 3000,
+        });
+        setIsSubmitting(false);
+        return;
+      }
+  
+      // Convertir la lista de lo que aprenderán a formato compatible
+      const learningPoints = whatTheyWillLearn
+        .split('\n')
+        .filter(item => item.trim() !== '')
+        .map(item => item.trim());
+  
+      // Convertir los horarios disponibles al formato correcto
+      const availableTimesArray = convertTimeSlotsToApiFormat();
+  
+      // Crear el objeto para enviar a la API
+      const tutoringPayload = {
+        tutor_id: currentUser.id.toString(),
+        course_id: selectedCourse.id.toString(),
+        title: selectedCourse.name || '',
         description: description,
-        price: price,
-        whatTheyWillLearn: whatTheyWillLearn.split('\n').filter(item => item.trim() !== ''),
-        imageUrl: courseImage || '',
-        availableTimes: formattedAvailableTimes
-      });
-
-      // Guardar la tutoría
-      const savedTutoring = await TutoringService.createTutoing(newTutoring);
-
+        price: Number(price),
+        what_they_will_learn: learningPoints,
+        image_url: '',
+        // Incluimos los availableTimes que el servicio manejará correctamente
+        availableTimes: availableTimesArray
+      };
+  
+      console.log("Preparando datos para tutoría:", tutoringPayload);
+  
+      // Usar el servicio para crear la tutoría con todos sus datos
+      // El servicio ya maneja la conversión de formatos y la creación de horarios
+      const savedTutoring = await TutoringService.createTutoring(tutoringPayload);
+      console.log("Tutoría creada:", savedTutoring);
+      
+      // Si tenemos un archivo de imagen, subirlo y actualizar la tutoría
+      if (originalFile && savedTutoring?.id) {
+        try {
+          setUploadingImage(true);
+          
+          toast.current?.show({
+            severity: 'info',
+            summary: 'Subiendo imagen',
+            detail: 'La tutoría ha sido creada. Subiendo imagen...',
+            life: 5000,
+          });
+          
+          // Subir la imagen usando el servicio existente
+          const imageUrl = await TutoringImageService.uploadTutoringImage(
+            savedTutoring.id, 
+            originalFile
+          );
+          
+          // Si se subió correctamente, actualizar la tutoría
+          if (imageUrl) {
+            // Actualizar la tutoría con la URL de la imagen (el servicio maneja la conversión de formatos)
+            await TutoringService.updateTutoring(savedTutoring.id, {
+              image_url: imageUrl
+            });
+            
+            // Actualizar el objeto guardado con la URL de la imagen
+            savedTutoring.imageUrl = imageUrl;
+            
+            console.log("Imagen subida y tutoría actualizada con la URL:", imageUrl);
+          }
+        } catch (imageError) {
+          console.error('Error al subir la imagen:', imageError);
+          toast.current?.show({
+            severity: 'warn',
+            summary: 'Advertencia',
+            detail: 'La tutoría se creó pero hubo un problema al subir la imagen.',
+            life: 5000,
+          });
+        } finally {
+          setUploadingImage(false);
+        }
+      }
+  
       // Mostrar mensaje de éxito
       toast.current?.show({
         severity: 'success',
-        summary: 'Success',
-        detail: 'Tutoring session created successfully',
+        summary: 'Éxito',
+        detail: 'Tutoría creada correctamente',
         life: 3000,
       });
-
+  
       // Notificar al componente padre
       onSave(savedTutoring);
       
@@ -248,11 +307,21 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
       resetForm();
     } catch (error) {
       console.error('Error creating tutoring session:', error);
+      
+      let errorMsg = 'Hubo un error al crear la tutoría.';
+      
+      // Mostrar un mensaje más específico si es posible
+      if (error && typeof error === 'object' && 'response' in error && 
+          error.response && typeof error.response === 'object' && 'data' in error.response && 
+          error.response.data && typeof error.response.data === 'object' && 'message' in error.response.data) {
+        errorMsg += ` ${error.response.data.message}`;
+      }
+      
       toast.current?.show({
         severity: 'error',
         summary: 'Error',
-        detail: 'There was an error creating the tutoring session',
-        life: 3000,
+        detail: errorMsg,
+        life: 5000,
       });
     } finally {
       setIsSubmitting(false);
@@ -267,7 +336,9 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     setPrice(0);
     setWhatTheyWillLearn('');
     setCourseImage(undefined);
+    setOriginalFile(null);
     setImageUploaded(false);
+    setErrorMessage('');
     initializeTimeSlots();
   };
 
@@ -374,7 +445,9 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
                 <div className="flex items-center space-x-4">
                   <label
                     htmlFor="file-upload"
-                    className="block text-center text-sm text-white py-2 px-4 rounded bg-red-500 font-semibold cursor-pointer hover:bg-red-600"
+                    className={`block text-center text-sm text-white py-2 px-4 rounded bg-red-500 font-semibold cursor-pointer hover:bg-red-600 ${
+                      uploadingImage ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
                     Upload image
                   </label>
@@ -384,14 +457,20 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
               <input
                 id="file-upload"
                 type="file"
-                accept="image/*"
+                accept="image/png, image/jpeg, image/jpg, image/gif, image/webp"
                 onChange={onFileUpload}
                 className="hidden" // Ocultar el input
+                disabled={uploadingImage}
               />
 
               {/* Vista previa de la imagen subida */}
               {courseImage && (
-                <div className="mt-3">
+                <div className="mt-3 relative">
+                  {uploadingImage && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                      <ProgressSpinner style={{ width: '50px', height: '50px' }} strokeWidth="4" fill="#1f1f1f" animationDuration=".5s" />
+                    </div>
+                  )}
                   <img
                     src={courseImage}
                     alt="Course Image"
@@ -401,10 +480,12 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
                   <button
                     onClick={() => {
                       setCourseImage(undefined);
+                      setOriginalFile(null);
                       setImageUploaded(false);
                       setErrorMessage('');
                     }}
                     className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    disabled={uploadingImage}
                   >
                     Remove image
                   </button>
@@ -413,7 +494,7 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
 
               {/* Mensajes de éxito o error */}
               {imageUploaded && (
-                <p className="text-sm text-green-500">Image uploaded successfully</p>
+                <p className="text-sm text-green-500">Image ready to upload</p>
               )}
               {errorMessage && (
                 <p className="text-sm text-red-500">{errorMessage}</p>
@@ -452,11 +533,16 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
           {/* Botón para añadir tutoría */}
           <div className="flex justify-end pt-4">
             <button
-              className={`px-4 py-2 rounded ${isFormValid ? 'bg-primary hover:bg-primary-hover' : 'bg-gray-700 cursor-not-allowed'} text-white`}
+              className={`px-4 py-2 rounded ${isFormValid ? 'bg-primary hover:bg-primary-hover' : 'bg-gray-700 cursor-not-allowed'} text-white relative`}
               onClick={onConfirmAddTutoring}
-              disabled={!isFormValid || isSubmitting}
+              disabled={!isFormValid || isSubmitting || uploadingImage}
             >
-              {isSubmitting ? 'Adding...' : 'Add Tutoring'}
+              {isSubmitting ? (
+                <span className="flex items-center">
+                  <ProgressSpinner style={{width: '20px', height: '20px'}} strokeWidth="4" fill="none" animationDuration=".5s" className="mr-2"/>
+                  Adding...
+                </span>
+              ) : 'Add Tutoring'}
             </button>
           </div>
         </div>

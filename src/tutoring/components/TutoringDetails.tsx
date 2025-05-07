@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { TutoringSession, TutoringReview } from '../types/Tutoring';
-import { Check } from 'lucide-react';
+import { Check, Users, Monitor } from 'lucide-react';
 import { Rating } from 'primereact/rating';
-import ReviewList from '../components/Review/ReviewList';
+import ReviewList from './Review/ReviewList';
 import { User } from '../../user/types/User';
 import { Course } from '../../course/types/Course';
+import { Link } from 'react-router-dom';
+import Avatar from '../../user/components/Avatar';
 
 interface TutoringDetailsProps {
     tutoring: TutoringSession;
@@ -13,9 +15,9 @@ interface TutoringDetailsProps {
     course?: Course;
 }
 
-const TutoringDetails: React.FC<TutoringDetailsProps> = ({ 
+const TutoringDetails: React.FC<TutoringDetailsProps> = ({
     tutoring,
-    reviews, 
+    reviews,
     tutor,
     course
 }) => {
@@ -30,54 +32,120 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
         }
     }, [reviews]);
 
-    // Imagen por defecto
+    // Imagen por defecto para la tutoría
     const defaultImageUrl = 'https://i0.wp.com/port2flavors.com/wp-content/uploads/2022/07/placeholder-614.png';
 
-    // Define time slots based on the format in TimeSlotSelectorBySection component
-    const morningTimeSlots = ['8-9', '9-10', '10-11', '11-12'];
-    const afternoonTimeSlots = ['13-14', '14-15', '15-16', '16-17'];
-    const eveningTimeSlots = ['18-19', '19-20', '20-21', '21-22'];
-    const allTimeSlots = [...morningTimeSlots, ...afternoonTimeSlots, ...eveningTimeSlots];
-
-    // Days of week mapping for display
-    const daysOfWeek = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-    
-    // Convertir availableTimes a un formato agrupado por día y hora
-    const groupedAvailabilities: { [day: string]: string[] } = {};
-    
-    // Si availableTimes existe, convertirlo al formato necesario para el componente
-    if (availableTimes && availableTimes.length > 0) {
-        availableTimes.forEach(timeSlot => {
-            const day = daysOfWeek[timeSlot.dayOfWeek];
-            
-            if (!groupedAvailabilities[day]) {
-                groupedAvailabilities[day] = [];
-            }
-            
-            timeSlot.availableHours.forEach(hour => {
-                // Extraer solo la hora (no los minutos) para crear el formato "8-9"
-                const startHour = hour.start.split(':')[0];
-                const endHour = hour.end.split(':')[0];
-                const timeSlotStr = `${startHour}-${endHour}`;
-                
-                if (!groupedAvailabilities[day].includes(timeSlotStr)) {
-                    groupedAvailabilities[day].push(timeSlotStr);
-                }
-            });
-        });
+    // Define time slots based on the format in the database
+    const timeSlots = [];
+    // Generar slots de 8 a 22h
+    for (let hour = 8; hour < 22; hour++) {
+        timeSlots.push(`${hour}-${hour + 1}`);
     }
 
+    // Días de la semana en español para mejor legibilidad
+    const daysOfWeek = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+
+    // Agrupar disponibilidades por día para la visualización
+    const groupedAvailabilities: { [day: string]: string[] } = {};
+    
+    // Inicializar todos los días para evitar problemas con días sin horarios
+    daysOfWeek.forEach(day => {
+        groupedAvailabilities[day] = [];
+    });
+
+    if (availableTimes && availableTimes.length > 0) {
+        console.log('Procesando horarios disponibles:', availableTimes);
+
+        availableTimes.forEach(timeSlot => {
+            try {
+                // Obtener el índice del día con soporte para ambos formatos
+                let dayIndex = -1;
+                
+                if (typeof timeSlot.day_of_week === 'number' && !isNaN(timeSlot.day_of_week)) {
+                    dayIndex = timeSlot.day_of_week;
+                } else if (typeof timeSlot.dayOfWeek === 'number' && !isNaN(timeSlot.dayOfWeek)) {
+                    dayIndex = timeSlot.dayOfWeek;
+                } else if (typeof timeSlot.day_of_week === 'string') {
+                    dayIndex = parseInt(timeSlot.day_of_week, 10);
+                } else if (typeof timeSlot.dayOfWeek === 'string') {
+                    dayIndex = parseInt(timeSlot.dayOfWeek, 10);
+                }
+
+                // Verificar índice válido
+                if (isNaN(dayIndex) || dayIndex < 0 || dayIndex > 6) {
+                    console.warn('Índice de día inválido:', dayIndex, timeSlot);
+                    return; // Saltar este horario
+                }
+
+                const day = daysOfWeek[dayIndex];
+
+                // Extraer horas de inicio y fin con soporte para ambos formatos
+                let startTime = timeSlot.start_time || timeSlot.startTime || '';
+                let endTime = timeSlot.end_time || timeSlot.endTime || '';
+
+                if (!startTime || !endTime) {
+                    console.warn('Horario sin tiempo de inicio o fin:', timeSlot);
+                    return; // Saltar este horario
+                }
+
+                // Limpiar el formato de los tiempos (remover segundos)
+                if (startTime.includes(':')) {
+                    // Divide por ":" y toma solo horas y minutos
+                    const [startHours, startMinutes] = startTime.split(':');
+                    startTime = `${startHours}:${startMinutes}`;
+                }
+                
+                if (endTime.includes(':')) {
+                    const [endHours, endMinutes] = endTime.split(':');
+                    endTime = `${endHours}:${endMinutes}`;
+                }
+
+                // Extraer solo las horas para el formato de los slots de tiempo
+                const startHour = parseInt(startTime.split(':')[0], 10);
+                const endHour = parseInt(endTime.split(':')[0], 10);
+                
+                // Si hay minutos en el tiempo final, redondear hacia arriba
+                const endMinutes = endTime.split(':')[1] ? parseInt(endTime.split(':')[1], 10) : 0;
+                const adjustedEndHour = endMinutes > 0 ? endHour + 1 : endHour;
+
+                console.log(`Procesando horario: día ${day}, hora ${startHour}-${adjustedEndHour}`);
+
+                // Crear slots para cada hora del rango
+                for (let hour = startHour; hour < adjustedEndHour; hour++) {
+                    const timeSlotStr = `${hour}-${hour + 1}`;
+                    if (!groupedAvailabilities[day].includes(timeSlotStr)) {
+                        groupedAvailabilities[day].push(timeSlotStr);
+                    }
+                }
+            } catch (error) {
+                console.error('Error al procesar horario:', error, timeSlot);
+            }
+        });
+
+        console.log('Horarios agrupados por día:', groupedAvailabilities);
+    } else {
+        console.warn('No hay horarios disponibles o el formato no es válido:', availableTimes);
+    }
+
+    // Obtener el nombre completo del tutor
     const getTutorName = () => {
         if (tutor) {
             return `${tutor.firstName} ${tutor.lastName}`;
         } else {
-            return 'Unknown Tutor';
+            return 'Tutor no disponible';
         }
     }
 
+    // Convertir el array de "whatTheyWillLearn" a formato adecuado
+    const learningPoints = Array.isArray(whatTheyWillLearn)
+        ? whatTheyWillLearn
+        : typeof whatTheyWillLearn === 'object' && whatTheyWillLearn !== null
+            ? Object.values(whatTheyWillLearn)
+            : [];
+
     const customStyles = `
     .p-rating .p-rating-item .p-rating-icon {
-      color: red;
+      color: #f05c5c;
     }
     
     .p-rating .p-rating-item:not(.p-rating-item-active) .p-rating-icon {
@@ -91,52 +159,74 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
 
     return (
         <div className="text-white w-full bg-[#1e1e1e] min-h-screen">
+            <style>{customStyles}</style>
+
+            {/* Header con información básica */}
             <div className="w-full bg-[#252525]">
                 <div className="container mx-auto px-4 py-6">
                     <div className="text-sm text-red-400 mb-4">
-                        <span>{course ? `${course.semester} > ${course.name}` : 'Tutoring Session'}</span>
+                        <span>
+                            {course
+                                ? `${course.semesterNumber}° Semestre > ${course.name}`
+                                : 'Tutoría'}
+                        </span>
                     </div>
 
                     <h1 className="text-3xl md:text-4xl font-bold mb-4">{title}</h1>
                     <p className="text-white mb-4">{description}</p>
-                    <style>{customStyles}</style>
-                    <span className="text-red-600 font-semibold text-lg flex items-center gap-2">
-                      {averageRating || '0.0'} 
-                      <Rating 
-                        value={Math.round(averageRating)} 
-                        readOnly
-                        cancel={false}
-                      />
-                      <span className="text-white text-sm">({reviews.length} reviews)</span>
-                    </span>               
-                    <p className="text-sm text-white mt-4 mb-4">
-                        Dictado por <span className="text-red-600 underline cursor-pointer">
-                            {getTutorName()}
+
+                    <div className="flex items-center gap-2 mb-4">
+                        <span className="text-red-600 font-semibold text-lg">
+                            {averageRating.toFixed(1)}
                         </span>
-                    </p>
+                        <Rating
+                            value={Math.round(averageRating)}
+                            readOnly
+                            cancel={false}
+                        />
+                        <span className="text-white text-sm">({reviews.length} reseñas)</span>
+                    </div>
+
+                    <div className="flex items-center gap-3 mt-4 mb-4">
+                        {tutor && (
+                            <>
+                                <div className="flex items-center">
+                                    <Avatar user={tutor} size="sm" className="mr-2" />
+                                    <Link to={`/profile/${tutor.id}`} className="text-red-600 hover:underline">
+                                        {getTutorName()}
+                                    </Link>
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
+
+            {/* Contenido principal */}
             <div className="w-full bg-[#303031]">
-                <div className="container mx-auto py-4">
+                <div className="container mx-auto py-4 px-4">
                     <div className="flex flex-col-reverse lg:flex-row gap-8 mb-8">
-                        {/* Contenido principal (aprendizaje + horarios) */}
+                        {/* Contenido izquierdo (aprendizaje + horarios + reseñas) */}
                         <div className="w-full lg:w-3/4 flex flex-col gap-6">
                             {/* Sección: What you will learn */}
-                            <div className="p-6 border border-white">
-                                <h2 className="text-xl font-semibold mb-6">What you will learn</h2>
+                            <div className="p-6 border border-[#4a4a4a] rounded-lg bg-[#252525]">
+                                <h2 className="text-xl font-semibold mb-6">Lo que aprenderás</h2>
                                 <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    {whatTheyWillLearn?.map((item, index) => (
-                                        <li key={index} className="flex items-center gap-2">
-                                            <span className="text-green-500">✓</span>
-                                            {item}
+                                    {learningPoints.map((item, index) => (
+                                        <li key={index} className="flex items-start gap-2">
+                                            <span className="text-green-500 mt-1">
+                                                <Check size={18} />
+                                            </span>
+                                            <span>{typeof item === 'string' ? item : JSON.stringify(item)}</span>
                                         </li>
                                     ))}
                                 </ul>
                             </div>
 
                             {/* Sección: Horarios disponibles */}
-                            <div className="p-6 border border-white">
-                                <h2 className="text-xl font-semibold mb-6">Tutor available times</h2>
+                            <div className="p-6 border border-[#4a4a4a] rounded-lg bg-[#252525]">
+                                <h2 className="text-xl font-semibold mb-6">Horarios disponibles del tutor</h2>
+                                
                                 <div className="overflow-x-auto">
                                     <table className="w-full border-collapse min-w-[600px] table-fixed">
                                         <thead>
@@ -150,21 +240,21 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            {allTimeSlots.map(timeSlot => (
+                                            {timeSlots.map(timeSlot => (
                                                 <tr key={timeSlot}>
-                                                    <td className="w-1/8 text-center p-1 text-sm text-gray-400">{timeSlot}</td>
+                                                    <td className="w-1/8 text-center p-1 text-sm text-gray-400">{timeSlot}h</td>
                                                     {daysOfWeek.map(day => {
                                                         const isAvailable = groupedAvailabilities[day]?.includes(timeSlot);
                                                         return (
                                                             <td key={`${day}-${timeSlot}`} className="w-1/8 p-1">
                                                                 <div
                                                                     className={`h-10 flex items-center justify-center rounded 
-                                                                        ${isAvailable
-                                                                            ? 'bg-green-600 text-white font-bold'
-                                                                            : 'border border-white text-gray-500'
-                                                                        }`}
+                                                                    ${isAvailable
+                                                                        ? 'bg-green-600 text-white font-bold'
+                                                                        : 'border border-[#4a4a4a] text-gray-500'
+                                                                    }`}
                                                                 >
-                                                                    {isAvailable ? <Check /> : ''}
+                                                                    {isAvailable ? <Check size={16} /> : ''}
                                                                 </div>
                                                             </td>
                                                         );
@@ -177,19 +267,19 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                             </div>
 
                             {/* Sección: Reseñas */}
-                            <div className="p-6 border border-white">
-                                <h2 className="text-xl font-semibold mb-6">Student Reviews</h2>
+                            <div className="p-6 border border-[#4a4a4a] rounded-lg bg-[#252525]">
+                                <h2 className="text-xl font-semibold mb-6">Reseñas de estudiantes</h2>
                                 {reviews && reviews.length > 0 ? (
                                     <ReviewList reviews={reviews} />
                                 ) : (
-                                    <p className="text-gray-400">No reviews yet. Be the first to review this tutoring session!</p>
+                                    <p className="text-gray-400">Aún no hay reseñas. ¡Sé el primero en dejar una reseña!</p>
                                 )}
                             </div>
                         </div>
 
                         {/* Sidebar de imagen, precio y botón */}
                         <div className="w-full lg:w-1/4">
-                            <div className="bg-[#252525] p-6 sticky top-6">
+                            <div className="bg-[#252525] p-6 sticky top-6 rounded-lg border border-[#4a4a4a]">
                                 <img
                                     src={imageUrl || defaultImageUrl}
                                     alt={title}
@@ -198,14 +288,19 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                 <h3 className="text-xl font-bold mb-2">{title}</h3>
                                 <p className="text-2xl font-bold text-[#f05c5c] my-3">S/. {price.toFixed(2)} </p>
                                 <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
-                                    Request Tutoring
+                                    Solicitar Tutoría
                                 </button>
                                 <div className="w-full text-sm text-gray-300">
-                                    <p className="font-semibold text-white mb-2">This tutorial includes:</p>
-                                    <ul className="list-disc list-inside space-y-2">
-                                        <li>3 tutoring sessions.</li>
-                                        <li>Personalized sessions.</li>
-                                        <li>Tutoring modality: virtual.</li>
+                                    <p className="font-semibold text-white mb-2">Esta tutoría incluye:</p>
+                                    <ul className="space-y-2">
+                                        <li className="flex items-center gap-2">
+                                            <Users size={16} className="text-[#f05c5c]" />
+                                            <span>Sesiones personalizadas</span>
+                                        </li>
+                                        <li className="flex items-center gap-2">
+                                            <Monitor size={16} className="text-[#f05c5c]" />
+                                            <span>Modalidad: 100% virtual</span>
+                                        </li>
                                     </ul>
                                 </div>
                             </div>

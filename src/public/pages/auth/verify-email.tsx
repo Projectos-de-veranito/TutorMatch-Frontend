@@ -8,7 +8,9 @@ import NavbarAuth from "../../components/NavbarAuth";
 import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import { useAuth } from "../../hooks/useAuth";
+import axios from 'axios';
 
+const API_URL = import.meta.env.VITE_TUTORMATCH_BACKEND_URL;
 interface PendingRegistration {
   email: string;
   userData: {
@@ -37,7 +39,7 @@ export default function VerifyEmailPage() {
   const [isVerified, setIsVerified] = useState(false);
   const [registering, setRegistering] = useState(true);
   const toast = useRef<any>(null);
-  const { signUp, signIn } = useAuth();
+  const { signUp, verifyEmail } = useAuth();
   
   useEffect(() => {
     const emailParam = searchParams.get('email');
@@ -46,13 +48,14 @@ export default function VerifyEmailPage() {
     // Verificar también si venimos del flujo de autenticación de Supabase
     // A veces Supabase agrega sus propios parámetros como 'type=signup'
     const hasAuthFlow = searchParams.has('type');
+    const hasToken = searchParams.has('token'); // Para nuevo flujo de API
     
     // Si encontramos parámetros de autenticación, probablemente viene de confirmación
     if (emailParam) {
       setEmail(emailParam);
       
-      // Si el parámetro verified es 'true' o venimos del flujo de autenticación
-      if (verifiedParam === 'true' || hasAuthFlow) {
+      // Si el parámetro verified es 'true' o venimos del flujo de autenticación o tenemos token
+      if (verifiedParam === 'true' || hasAuthFlow || hasToken) {
         // Almacenar esta información para no perderla en recargas
         localStorage.setItem('email_verified', emailParam);
         
@@ -67,6 +70,11 @@ export default function VerifyEmailPage() {
         // Ya no estamos en proceso de registro
         setRegistering(false);
         setRegistrationComplete(true);
+        
+        // Si tenemos token de confirmación, lo procesamos
+        if (hasToken) {
+          processVerificationToken(searchParams.get('token') || '');
+        }
       } else {
         // Verificar si este correo ya fue verificado anteriormente
         const verifiedEmail = localStorage.getItem('email_verified');
@@ -96,6 +104,18 @@ export default function VerifyEmailPage() {
       setRegistering(false);
     }
   }, [searchParams]);
+
+  const processVerificationToken = async (token: string) => {
+    try {
+      // Realizar petición a la API para confirmar el token
+      await axios.post(`${API_URL}/auth/verify-email`, { token });
+      
+      // Opcionalmente, podemos hacer algo adicional aquí después de la verificación exitosa
+    } catch (error) {
+      console.error("Error al procesar el token de verificación:", error);
+      // No mostramos error al usuario ya que ya hemos marcado el correo como verificado
+    }
+  };
 
   const completeRegistration = async (pendingRegistration: PendingRegistration) => {
     setLoading(true);
@@ -171,11 +191,10 @@ export default function VerifyEmailPage() {
         return;
       }
   
-      // Si no está en localStorage, intentamos verificar con una sesión
-      const { data } = await supabase.auth.getSession();
+      // Usamos la función de verificación de email de useAuth
+      const { success, message, isVerified } = await verifyEmail(email);
       
-      if (data.session) {
-        // Si hay una sesión activa, el correo está verificado
+      if (success && isVerified) {
         localStorage.setItem('email_verified', email);
         
         toast.current.show({
@@ -188,31 +207,18 @@ export default function VerifyEmailPage() {
         setTimeout(() => {
           navigate('/register/success');
         }, 2000);
-        return;
-      }
-  
-      // Si no hay sesión, intentamos un enfoque alternativo
-      const { success, message } = await signIn(email, "dummy-password");
-      
-      if (success || message.includes("Invalid login credentials")) {
-        // Si el error es por credenciales incorrectas, el email está verificado
-        localStorage.setItem('email_verified', email);
-        
-        toast.current.show({
-          severity: 'success',
-          summary: 'Verificación exitosa',
-          detail: 'Tu correo electrónico ha sido verificado. Redirigiendo...',
-          life: 2000
-        });
-        
-        setTimeout(() => {
-          navigate('/register/success');
-        }, 2000);
-      } else {
+      } else if (success && !isVerified) {
         toast.current.show({
           severity: 'warn',
           summary: 'Correo no verificado',
           detail: 'Por favor, verifica tu correo antes de continuar.',
+          life: 3000
+        });
+      } else {
+        toast.current.show({
+          severity: 'error',
+          summary: 'Error',
+          detail: message || 'Error al verificar el correo',
           life: 3000
         });
       }
@@ -227,6 +233,7 @@ export default function VerifyEmailPage() {
       setChecking(false);
     }
   };
+  
   // Función para reenviar correo de verificación
   const resendVerificationEmail = async () => {
     if (!email) {
@@ -242,6 +249,25 @@ export default function VerifyEmailPage() {
     setLoading(true);
     
     try {
+      // Intentamos usar la API primero para reenviar el correo
+      try {
+        await axios.post(`${API_URL}/auth/resend-verification`, { 
+          email,
+          redirectUrl: `${window.location.origin}/verify-email?email=${encodeURIComponent(email)}&verified=true`
+        });
+        
+        toast.current.show({
+          severity: 'success',
+          summary: 'Correo enviado',
+          detail: 'Se ha reenviado el correo de verificación',
+          life: 3000
+        });
+        return;
+      } catch (apiError) {
+        console.error("Error al reenviar desde API, usando Supabase como fallback:", apiError);
+      }
+      
+      // Fallback a Supabase si la API falla
       const { error } = await supabase.auth.resend({
         type: 'signup',
         email: email,

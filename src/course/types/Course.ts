@@ -1,15 +1,19 @@
 export class Course {
-  id: number;
+  id: string;
   name: string;
-  semester: number;
+  semesterNumber: number;
+  createdAt?: string;
+  updatedAt?: string;
 
-  constructor(course: {
-    id?: number;
-    name?: string;
-    semester?: number;
-  }) {
-    this.id = course.id || 0;
-    this.name = course.name || '';
-    this.semester = course.semester || 0;
+  constructor(data: any) {
+    this.id = data.id || '';
+    this.name = data.name || '';
+    this.semesterNumber = typeof data.semesterNumber === 'number' 
+      ? data.semesterNumber 
+      : typeof data.semester_number === 'number'
+        ? data.semester_number
+        : 0;
+    this.createdAt = data.createdAt || data.created_at;
+    this.updatedAt = data.updatedAt || data.updated_at;
   }
 }

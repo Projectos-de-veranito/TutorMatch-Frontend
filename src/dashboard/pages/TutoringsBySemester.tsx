@@ -11,6 +11,7 @@ const TutoringsBySemester: React.FC = () => {
   const [tutorings, setTutorings] = useState<TutoringSession[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [semesterName, setSemesterName] = useState<string>('');
 
   useEffect(() => {
     const fetchTutorings = async () => {
@@ -26,6 +27,13 @@ const TutoringsBySemester: React.FC = () => {
       try {
         // 1. Obtener información del semestre
         const semesterData = await SemesterService.getSemesterById(semesterId);
+        
+        // Guardar el nombre del semestre para mostrarlo en el título
+        if (semesterData && semesterData.name) {
+          setSemesterName(semesterData.name);
+        } else {
+          setSemesterName('Semestre');
+        }
 
         // 2. Obtener todos los cursos del semestre
         const courses = semesterData.courses || [];
@@ -43,6 +51,7 @@ const TutoringsBySemester: React.FC = () => {
       } catch (err) {
         console.error('Error al cargar las tutorías:', err);
         setError('Error al cargar las tutorías. Intente nuevamente más tarde.');
+        setSemesterName('Semestre desconocido');
       } finally {
         setLoading(false);
       }
@@ -55,7 +64,7 @@ const TutoringsBySemester: React.FC = () => {
     <DashboardLayout>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <h1 className="text-3xl font-bold text-white mb-6">
-          {`${semesterId}° Semestre`}
+          {semesterName} Semester
         </h1>
 
         {loading ? (

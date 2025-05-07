@@ -22,7 +22,8 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review }) => {
     }
   };
 
-  const formatDate = (date: string | Date) => {
+  const formatDate = (date?: string | Date) => {
+    if (!date) return 'Fecha no disponible';
     // Convertir la cadena a un objeto Date si es necesario
     const parsedDate = typeof date === 'string' ? new Date(date) : date;
     return parsedDate.toLocaleDateString('es-ES', {
@@ -33,9 +34,20 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review }) => {
   };
 
   const StudentAvatar = () => (
-    <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl font-bold text-white shadow-md">
-      {review.studentId.toString().charAt(0).toUpperCase()}
-    </div>
+    <>
+      {review.student?.avatar ? (
+      <img 
+        src={review.student.avatar} 
+        alt={`${review.student.firstName} ${review.student.lastName}`} 
+        className="w-12 h-12 rounded-full object-cover shadow-md"
+      />
+      ) : (
+      <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-xl font-bold text-white shadow-md">
+        {review.student?.firstName?.charAt(0)?.toUpperCase()}
+        {review.student?.lastName?.charAt(0)?.toUpperCase()}
+      </div>
+      )}
+    </>
   );
 
   const header = (
@@ -43,7 +55,7 @@ const ReviewCard: React.FC<ReviewCardProps> = ({ review }) => {
       <StudentAvatar />
       <div>
         <h3 className="text-lg font-semibold dark:text-white">
-          Estudiante #{review.studentId}
+          {review.student?.firstName + ' ' + review.student?.lastName} 
         </h3>
         <p className="text-sm text-gray-500 dark:text-gray-400">{formatDate(review.createdAt)}</p>
       </div>

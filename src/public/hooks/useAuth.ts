@@ -1,33 +1,76 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase/client';
-import { User, UserRole, UserStatus, PlanType } from '../../user/types/User';
+import { User, UserRole, UserStatus} from '../../user/types/User';
 import { Session } from '@supabase/supabase-js';
 import { AuthService } from '../services/authService';
+import axios from 'axios';
+
+const API_URL = import.meta.env.VITE_TUTORMATCH_BACKEND_URL;
 
 export function useAuth() {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
+  const [token, setToken] = useState<string | null>(localStorage.getItem('auth_token'));
+
+  // Configurar axios para incluir el token en las solicitudes
+  useEffect(() => {
+    if (token) {
+      axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    } else {
+      delete axios.defaults.headers.common['Authorization'];
+    }
+  }, [token]);
 
   useEffect(() => {
+    // Mantener la escucha de cambios de autenticación con Supabase para mantener compatibilidad
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_, currentSession) => {
         if (currentSession) {
           setSession(currentSession);
+          // Almacenamos el token para futuras solicitudes
+          localStorage.setItem('auth_token', currentSession.access_token);
+          setToken(currentSession.access_token);
           fetchUserProfile(currentSession.user.id);
         } else {
           setSession(null);
           setUser(null);
+          localStorage.removeItem('auth_token');
+          setToken(null);
         }
         setLoading(false);
       }
     );
 
+    // En el useEffect de verificación de sesión
     const checkCurrentSession = async () => {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      if (currentSession) {
-        setSession(currentSession);
-        fetchUserProfile(currentSession.user.id);
+      // Si tenemos un token guardado, validamos la sesión
+      if (token) {
+        try {
+          const { data: { session: currentSession } } = await supabase.auth.getSession();
+          if (currentSession && currentSession.user) {
+            setSession(currentSession);
+            
+            // Asegurarse de que el ID del usuario esté guardado en localStorage
+            if (currentSession.user.id) {
+              AuthService.setCurrentUser(currentSession.user.id);
+            }
+            
+            fetchUserProfile(currentSession.user.id);
+          } else {
+            // Si no hay sesión válida, limpiamos el token y el ID
+            localStorage.removeItem('auth_token');
+            AuthService.clearCurrentUser();
+            setToken(null);
+            setUser(null);
+          }
+        } catch (error) {
+          console.error('Error al verificar sesión:', error);
+          localStorage.removeItem('auth_token');
+          AuthService.clearCurrentUser();
+          setToken(null);
+          setUser(null);
+        }
       }
       setLoading(false);
     };
@@ -43,10 +86,7 @@ export function useAuth() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select(`
-          *,
-          plans:user_plans(*)
-        `)
+        .select('*')
         .eq('id', userId)
         .single();
 
@@ -56,24 +96,9 @@ export function useAuth() {
       }
 
       if (data) {
-        let hasPlan = false;
-        let planType: PlanType | undefined = undefined;
-        let planExpirationDate: Date | undefined = undefined;
-        
-        if (data.role === 'tutor' && data.plans && data.plans.length > 0) {
-          const activePlans = data.plans
-            .filter((plan: any) => new Date(plan.expiration_date) > new Date())
-            .sort((a: any, b: any) => new Date(b.expiration_date).getTime() - new Date(a.expiration_date).getTime());
-          
-          if (activePlans.length > 0) {
-            hasPlan = true;
-            planType = activePlans[0].plan_type;
-            planExpirationDate = new Date(activePlans[0].expiration_date);
-          }
-        }
         
         const userProfile = new User({
-          id: Number(userId),
+          id: userId,
           email: data.email,
           firstName: data.first_name,
           lastName: data.last_name,
@@ -84,133 +109,195 @@ export function useAuth() {
           academicYear: data.academic_year || '',
           bio: data.bio || '',
           phone: data.phone,
+          tutorId: data.tutor_id || '',
           createdAt: new Date(data.created_at),
           updatedAt: new Date(data.updated_at),
-          planType,
-          planExpirationDate,
-          tutoringsCreated: data.tutorings_created || 0,
-          hasPlan
         });
 
         setUser(userProfile);
-
         AuthService.setCurrentUser(userId);
       }
     } catch (error) {
-      console.error('Error al procesar los datos del perfil:', error);
+      
     }
   };
 
   const signIn = async (email: string, password: string): Promise<{success: boolean, message: string}> => {
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const response = await axios.post(`${API_URL}/auth/login`, {
         email,
         password
       });
-
-      if (error) {
+  
+      if (response.data && response.data.session) {
+        // Guardar el token JWT
+        const token = response.data.session.access_token;
+        localStorage.setItem('auth_token', token);
+        setToken(token);
+        
+        // Guardar el ID del usuario en localStorage
+        if (response.data.user && response.data.user.id) {
+          AuthService.setCurrentUser(response.data.user.id);
+        }
+        
+        // Actualizar la sesión de Supabase para mantener compatibilidad
+        await supabase.auth.setSession({
+          access_token: token,
+          refresh_token: response.data.session.refresh_token
+        });
+  
+        // Obtener el perfil del usuario
+        if (response.data.user && response.data.user.id) {
+          fetchUserProfile(response.data.user.id);
+        }
+  
         return {
-          success: false,
-          message: error.message || 'Error al iniciar sesión'
+          success: true,
+          message: 'Inicio de sesión exitoso'
         };
       }
-
+  
       return {
-        success: true,
-        message: 'Inicio de sesión exitoso'
+        success: false,
+        message: 'Error al iniciar sesión. Respuesta inválida del servidor.'
       };
     } catch (error: any) {
       return {
         success: false,
-        message: error.message || 'Error inesperado al iniciar sesión'
+        message: error.response?.data?.message || 'Error inesperado al iniciar sesión'
       };
     }
   };
 
   const signUp = async (email: string, password: string, userData: any): Promise<{success: boolean, message: string}> => {
     try {
-      const { data, error } = await supabase.auth.signUp({
+      // Ajustamos la estructura para que coincida exactamente con el RegisterDto del backend
+      const registerData = {
         email,
         password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/verify-email?email=${encodeURIComponent(email)}&verified=true`,
-          data: {
-            email: email,
-            first_name: userData.firstName,
-            last_name: userData.lastName
-          }
-        }
-      });
+        firstName: userData.firstName,
+        lastName: userData.lastName,
+        gender: userData.gender,
+        semesterNumber: Number(userData.semesterNumber),
+        role: userData.role
+      };
   
-      if (error) {
+      console.log('Enviando datos de registro (ajustados):', JSON.stringify(registerData));
+      
+      try {
+        const response = await axios.post(`${API_URL}/auth/register`, registerData);
+        
+        if (response.data) {
+          // Si hay datos del usuario y sesión en la respuesta, actualizamos el estado
+          if (response.data.user && response.data.session) {
+            const token = response.data.session.access_token;
+            localStorage.setItem('auth_token', token);
+            setToken(token);
+            
+            // Guardar el ID del usuario en localStorage
+            if (response.data.user.id) {
+              AuthService.setCurrentUser(response.data.user.id);
+            }
+          }
+          
+          return {
+            success: true,
+            message: 'Registro exitoso. Por favor verifica tu correo electrónico.'
+          };
+        }
+  
+        return {
+          success: true,  // Consideramos exitoso incluso si solo recibimos un 200 sin datos específicos
+          message: 'Registro enviado correctamente. Por favor verifica tu correo electrónico.'
+        };
+      } catch (apiError: any) {
+        console.log('Respuesta de error completa:', apiError.response);
+        throw apiError;
+      }
+    } catch (error: any) {
+      console.error('Error detallado:', error.response?.data);
+      
+      // Manejo específico para diferentes tipos de errores
+      if (error.response?.status === 400) {
+        // Si hay un mensaje específico o detalles de validación, los extraemos
+        const errorMessage = error.response.data.message;
+        if (Array.isArray(errorMessage)) {
+          return {
+            success: false,
+            message: errorMessage.join('. ')
+          };
+        }
         return {
           success: false,
-          message: error.message || 'Error al registrar usuario'
+          message: errorMessage || 'Datos de registro inválidos'
         };
       }
-  
-      if (data.user) {
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update([
-            {
-              first_name: userData.firstName,
-              last_name: userData.lastName,
-              role: userData.role,
-              gender: userData.gender,
-              semester_number: userData.semesterNumber,
-              academic_year: userData.academicYear,
-              bio: userData.bio || '',
-              phone: userData.phone || '',
-              status: 'active',
-              avatar: userData.avatar || '',
-              updated_at: new Date().toISOString()
-            }
-          ])
-          .eq('id', data.user.id);
-  
-        if (profileError) {
-          console.error("Error al actualizar perfil:", profileError);
-        }
-      }
-  
-      return {
-        success: true,
-        message: 'Registro exitoso. Por favor verifica tu correo electrónico.'
-      };
-    } catch (error: any) {
+      
       return {
         success: false,
-        message: error.message || 'Error inesperado al registrar usuario'
+        message: error.response?.data?.message || 'Error inesperado al registrar usuario'
       };
     }
   };
 
-  const signOut = async (): Promise<{success: boolean, message: string}> => {
+  // Usar el endpoint API de logout en lugar de Supabase directamente
+    const signOut = async (): Promise<{success: boolean, message: string}> => {
     try {
-      const { error } = await supabase.auth.signOut();
-      
-      if (error) {
+      if (!token) {
         return {
           success: false,
-          message: error.message || 'Error al cerrar sesión'
+          message: 'No hay sesión activa'
         };
       }
-
-      AuthService.clearCurrentUser();
+  
+      try {
+        // Intentar llamar al endpoint de logout del backend
+        await axios.post(`${API_URL}/auth/logout`);
+      } catch (logoutError) {
+        // Si falla el endpoint de logout, continuamos con el proceso de cierre de sesión local
+        console.warn('Error al comunicarse con el endpoint de logout:', logoutError);
+      }
+      
+      // Limpiar la sesión de Supabase
+      await supabase.auth.signOut(); // Para mantener compatibilidad
+      
+      // Limpiar TODOS los elementos de localStorage relacionados con la autenticación
+      localStorage.clear(); // Esto borra todos los items del localStorage
+      
+      // Si prefieres borrar solo ciertos elementos, puedes usar este enfoque:
+      // const keysToRemove = ['auth_token', 'currentUserId', 'pendingRegistration', 'user_preferences'];
+      // keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Actualizar el estado
+      setToken(null);
+      setUser(null);
+      setSession(null);
       
       return {
         success: true,
         message: 'Sesión cerrada exitosamente'
       };
     } catch (error: any) {
+      console.error('Error durante el cierre de sesión:', error);
+      
+      // Incluso si hay un error, intentamos limpiar el localStorage
+      try {
+        localStorage.clear();
+        setToken(null);
+        setUser(null);
+        setSession(null);
+      } catch (clearError) {
+        console.error('Error al limpiar localStorage:', clearError);
+      }
+      
       return {
-        success: false,
-        message: error.message || 'Error inesperado al cerrar sesión'
+        success: true, // Considerar éxito incluso si el backend falló pero limpiamos localStorage
+        message: 'Se ha cerrado la sesión localmente'
       };
     }
   };
 
+  // Mantener estas funciones por compatibilidad o implementar endpoints equivalentes
   const verifyEmail = async (email: string): Promise<{success: boolean, message: string, isVerified: boolean}> => {
     try {
       const { error } = await supabase
@@ -283,6 +370,7 @@ export function useAuth() {
     user,
     session,
     loading,
+    token,
     signIn,
     signUp,
     signOut,

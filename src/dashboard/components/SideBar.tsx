@@ -12,17 +12,26 @@ import {
   Menu,
   X
 } from 'lucide-react';
+import { SemesterService } from '../services/SemesterService';
 
-const semesters = [
-  { icon: <Code />, semester: 'Primer Semestre', path: '/semester/1' },
-  { icon: <Layers />, semester: 'Segundo Semestre', path: '/semester/2' },
-  { icon: <Database />, semester: 'Tercer Semestre', path: '/semester/3' },
-  { icon: <Server />, semester: 'Cuarto Semestre', path: '/semester/4' },
-  { icon: <Monitor />, semester: 'Quinto Semestre', path: '/semester/5' },
-  { icon: <Smartphone />, semester: 'Sexto Semestre', path: '/semester/6' },
-  { icon: <Globe />, semester: 'Séptimo Semestre', path: '/semester/7' },
-  { icon: <CheckSquare />, semester: 'Octavo Semestre', path: '/semester/8' },
+// Iconos disponibles para asignar a los semestres
+const iconOptions = [
+  <Code />, 
+  <Layers />, 
+  <Database />, 
+  <Server />, 
+  <Monitor />, 
+  <Smartphone />, 
+  <Globe />, 
+  <CheckSquare />
 ];
+
+// Interfaz para semestres ya formateados
+interface FormattedSemester {
+  icon: React.ReactNode;
+  semester: string;
+  path: string;
+}
 
 interface SidebarProps {
   className?: string;
@@ -31,7 +40,52 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ className }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [semesters, setSemesters] = useState<FormattedSemester[]>([]);
+  const [loading, setLoading] = useState(true);
   const location = useLocation();
+
+  // Cargar semestres desde la API
+  useEffect(() => {
+    const loadSemesters = async () => {
+      try {
+        setLoading(true);
+        const data = await SemesterService.getSemesters();
+        
+        if (Array.isArray(data)) {
+          // Mapear los datos de la API al formato que espera el componente
+          const formattedSemesters = data.map((sem, index) => {
+            // Extraer el número del semestre del nombre, si existe
+            const match = sem.name.match(/(\d+)/);
+            const semNumber = match ? parseInt(match[1]) - 1 : index;
+            
+            // Seleccionar el icono adecuado, haciendo un ciclo si hay más semestres que iconos
+            const iconIndex = semNumber % iconOptions.length;
+            
+            return {
+              icon: iconOptions[iconIndex],
+              semester: sem.name,
+              path: `/semester/${sem.id}`
+            };
+          });
+          
+          // Ordenar por número de semestre si se puede extraer
+          const sortedSemesters = formattedSemesters.sort((a, b) => {
+            const numA = parseInt(a.semester.match(/\d+/)?.[0] || '0');
+            const numB = parseInt(b.semester.match(/\d+/)?.[0] || '0');
+            return numA - numB;
+          });
+          
+          setSemesters(sortedSemesters);
+        }
+      } catch (error) {
+        console.error('Error al cargar semestres:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadSemesters();
+  }, []);
 
   // Detectar si estamos en móvil o escritorio
   useEffect(() => {
@@ -97,19 +151,32 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
           
           <h2 className="text-lg font-semibold text-white mb-4">Ingeniería de Software</h2>
           <nav className="space-y-2">
-            {semesters.map((item, index) => (
-              <Link
-                key={index}
-                to={item.path}
-                className="flex items-center p-3 rounded-md text-light-gray hover:bg-dark-light hover:text-white transition-colors"
-                onClick={handleLinkClick}
-              >
-                <div className="mr-3 text-primary">{item.icon}</div>
-                <div>
-                  <div className="font-medium">{item.semester}</div>
-                </div>
-              </Link>
-            ))}
+            {loading ? (
+              // Indicador de carga simple
+              <div className="flex justify-center p-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary"></div>
+              </div>
+            ) : semesters.length > 0 ? (
+              // Mostrar semestres si hay datos
+              semesters.map((item, index) => (
+                <Link
+                  key={index}
+                  to={item.path}
+                  className="flex items-center p-3 rounded-md text-light-gray hover:bg-dark-light hover:text-white transition-colors"
+                  onClick={handleLinkClick}
+                >
+                  <div className="mr-3 text-primary">{item.icon}</div>
+                  <div>
+                    <div className="font-medium">{item.semester}</div>
+                  </div>
+                </Link>
+              ))
+            ) : (
+              // Mensaje si no hay datos
+              <div className="text-center py-2 text-gray-400">
+                No hay semestres disponibles
+              </div>
+            )}
           </nav>
         </div>
       </aside>

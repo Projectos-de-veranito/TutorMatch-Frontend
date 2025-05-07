@@ -4,6 +4,8 @@ import { Search, Globe, ChevronDown, Loader, Menu, X } from 'lucide-react';
 import CreateTutoringModal from './CreateTutoringModal';
 import { User as UserType } from '../../user/types/User';
 import { UserService } from '../../user/services/UserService';
+import { AuthService } from '../../public/services/authService';
+import { useAuth } from '../../public/hooks/useAuth';
 
 const Navbar = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -15,17 +17,48 @@ const Navbar = () => {
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const navigate = useNavigate();
-  
-  // Obtener los datos del usuario desde la API al cargar el componente
+  const { signOut, user: authUser } = useAuth();
+
+  // Obtener los datos del usuario actual
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
         setLoading(true);
-        // Asumimos que el usuario con ID 3 es el que está logueado
-        // En una aplicación real, esto vendría de un sistema de autenticación
-        const userData = await UserService.getUserById(3);
-        setCurrentUser(userData);
-        setError(null);
+
+        // Primero intentamos obtener el usuario del hook useAuth
+        if (authUser) {
+          setCurrentUser(authUser);
+          setError(null);
+          setLoading(false);
+          return;
+        }
+
+        // Verificar si hay una sesión activa
+        if (!AuthService.hasActiveSession()) {
+          setError('Sesión no encontrada');
+          setLoading(false);
+          return;
+        }
+
+        // Obtener el ID del usuario actual
+        const currentUserId = AuthService.getCurrentUserId();
+
+        // Obtener el perfil completo desde AuthService
+        const userProfile = await AuthService.getCurrentUserProfile();
+        if (userProfile) {
+          setCurrentUser(userProfile);
+          setError(null);
+        } else {
+          // Como último recurso, intentar obtener desde el UserService
+          try {
+            const userData = await UserService.getUserById(currentUserId!);
+            setCurrentUser(userData);
+            setError(null);
+          } catch (serviceError) {
+            console.error('Error al obtener usuario desde UserService:', serviceError);
+            setError('Error al cargar los datos del usuario');
+          }
+        }
       } catch (err) {
         console.error('Error al cargar los datos del usuario:', err);
         setError('Error al cargar los datos del usuario');
@@ -35,17 +68,17 @@ const Navbar = () => {
     };
 
     fetchCurrentUser();
-  }, []);
-  
+  }, [authUser]);
+
   const handleOpenModal = () => {
     setModalVisible(true);
     setMobileMenuOpen(false);
   };
-  
+
   const handleHideModal = () => {
     setModalVisible(false);
   };
-  
+
   const handleSaveTutoring = (tutoring: any) => {
     console.log('Tutoring saved:', tutoring);
     // Aquí irían las llamadas a la API para guardar la tutoría
@@ -60,11 +93,20 @@ const Navbar = () => {
     setMobileMenuOpen(!mobileMenuOpen);
   };
 
-  const handleLogout = () => {
-    // Lógica de cierre de sesión aquí
-    // Ejemplo: eliminar el token de autenticación, etc.
-    console.log('Usuario ha cerrado sesión');
-    navigate('/login'); // Redirigir al login
+  const handleLogout = async () => {
+    try {
+      // Usar el método signOut del hook useAuth para mantener consistencia
+      const { success, message } = await signOut();
+
+      if (success) {
+        // Redirigir al login
+        navigate('/login');
+      } else {
+        console.error('Error al cerrar sesión:', message);
+      }
+    } catch (error) {
+      console.error('Error inesperado al cerrar sesión:', error);
+    }
   };
 
   // Verificar si el usuario es un tutor
@@ -76,9 +118,9 @@ const Navbar = () => {
       if (dropdownRef.current && !(dropdownRef.current as any).contains(event.target)) {
         setProfileDropdownOpen(false);
       }
-      
-      if (mobileMenuRef.current && !(mobileMenuRef.current as any).contains(event.target) && 
-          !((event.target as HTMLElement).closest('.mobile-menu-button'))) {
+
+      if (mobileMenuRef.current && !(mobileMenuRef.current as any).contains(event.target) &&
+        !((event.target as HTMLElement).closest('.mobile-menu-button'))) {
         setMobileMenuOpen(false);
       }
     };
@@ -89,7 +131,10 @@ const Navbar = () => {
     };
   }, [dropdownRef, mobileMenuRef]);
 
-  // Si está cargando, mostrar un indicador de carga
+  const isValidAvatarUrl = (url: string | undefined): boolean => {
+    return !!url && (url.startsWith('http://') || url.startsWith('https://'));
+  };
+
   if (loading) {
     return (
       <nav className="bg-dark-card border-b border-dark-border">
@@ -104,7 +149,7 @@ const Navbar = () => {
                 <span className="ml-2 text-white font-semibold text-lg">TutorMatch</span>
               </Link>
             </div>
-            
+
             {/* Indicador de carga */}
             <div className="flex items-center">
               <Loader className="animate-spin text-primary h-5 w-5" />
@@ -116,7 +161,6 @@ const Navbar = () => {
     );
   }
 
-  // Si hay un error o no hay usuario, mostrar una versión simplificada
   if (error || !currentUser) {
     return (
       <nav className="bg-dark-card border-b border-dark-border">
@@ -131,7 +175,7 @@ const Navbar = () => {
                 <span className="ml-2 text-white font-semibold text-lg">TutorMatch</span>
               </Link>
             </div>
-            
+
             {/* Error o botón de inicio de sesión */}
             {error ? (
               <div className="text-red-500">{error}</div>
@@ -162,7 +206,7 @@ const Navbar = () => {
                 <span className="ml-2 text-white font-semibold text-lg">TutorMatch</span>
               </Link>
             </div>
-      
+
             {/* Barra de búsqueda centrada - solo visible en desktop */}
             <div className="hidden md:flex flex-1 justify-center">
               <div className="relative w-full max-w-md">
@@ -176,7 +220,7 @@ const Navbar = () => {
                 />
               </div>
             </div>
-      
+
             {/* Botones a la derecha - visible en desktop */}
             <div className="hidden md:flex items-center space-x-4">
               {/* Solo mostrar botón de "Añadir Tutoría" si el usuario es un tutor */}
@@ -192,30 +236,50 @@ const Navbar = () => {
                 <Globe className="h-6 w-6" />
               </button>
               <div className="relative" ref={dropdownRef}>
-                <button 
+                <button
                   className="flex items-center space-x-1 text-white rounded-full hover:bg-dark-light p-1"
                   onClick={toggleProfileDropdown}
                 >
-                  <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center">
-                    <span className="text-white">{avatarInitial}</span>
-                  </div>
+                  {currentUser.avatar ? (
+                    <img
+                      src={currentUser.avatar}
+                      alt="Avatar"
+                      className="h-8 w-8 rounded-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        console.error('Error al cargar avatar:', currentUser.avatar);
+                      }}
+                    />
+                  ) : (
+                    <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center">
+                      <span className="text-white">{avatarInitial}</span>
+                    </div>
+                  )}
                   <ChevronDown className="h-4 w-4" />
                 </button>
-                
+
                 {/* Dropdown de perfil */}
                 {profileDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-64 bg-dark-card border border-dark-border rounded-lg shadow-lg z-10">
                     <div className="p-4">
                       <div className="flex items-center mb-3">
-                        <div className="h-12 w-12 rounded-full bg-red-600 flex items-center justify-center mr-3">
-                          <span className="text-white text-xl">{avatarInitial}</span>
-                        </div>
+                        {currentUser.avatar ? (
+                          <img
+                            src={currentUser.avatar}
+                            alt="Avatar"
+                            className="h-12 w-12 rounded-full object-cover mr-3"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded-full bg-red-600 flex items-center justify-center mr-3">
+                            <span className="text-white text-xl">{avatarInitial}</span>
+                          </div>
+                        )}
                         <div>
                           <h3 className="text-white font-medium">{currentUser.firstName} {currentUser.lastName}</h3>
                           <p className="text-light-gray text-sm">{currentUser.email}</p>
                         </div>
                       </div>
-                      
+
                       <div className="border-t border-dark-border pt-3 mb-3">
                         <div className="flex justify-between items-center text-sm text-light-gray mb-1">
                           <span>{currentUser.semesterNumber}° Semestre <br /> {currentUser.academicYear}</span>
@@ -224,7 +288,7 @@ const Navbar = () => {
                           <span>{currentUser.role === 'tutor' ? 'Tutor' : 'Estudiante'}</span>
                         </div>
                       </div>
-                      
+
                       <div className="space-y-2">
                         <Link to="/profile" className="block w-full text-center px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
                           Ver perfil completo
@@ -232,7 +296,7 @@ const Navbar = () => {
                         <Link to="/settings" className="block w-full text-center px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
                           Configuración
                         </Link>
-                        <button 
+                        <button
                           className="block w-full text-center px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"
                           onClick={handleLogout}
                         >
@@ -260,7 +324,7 @@ const Navbar = () => {
 
         {/* Menú móvil */}
         {mobileMenuOpen && (
-          <div 
+          <div
             ref={mobileMenuRef}
             className="md:hidden bg-dark-card border-t border-dark-border z-20"
           >
@@ -290,18 +354,32 @@ const Navbar = () => {
                     Añadir Tutoría
                   </button>
                 )}
-                
+
                 <div className="mt-3 pt-3 border-t border-dark-border">
                   <div className="flex items-center mb-2">
-                    <div className="h-10 w-10 rounded-full bg-red-600 flex items-center justify-center mr-3">
-                      <span className="text-white">{avatarInitial}</span>
-                    </div>
+                    {isValidAvatarUrl(currentUser.avatar) ? (
+                      <img
+                        src={currentUser.avatar}
+                        alt="Avatar"
+                        className="h-8 w-8 rounded-full object-cover"
+                        onError={(e) => {
+                          // Fallback si hay error al cargar la imagen
+                          console.warn('Error al cargar avatar, mostrando inicial');
+                          e.currentTarget.style.display = 'none';
+                          e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                        }}
+                      />
+                    ) : (
+                      <div className="h-8 w-8 rounded-full bg-red-600 flex items-center justify-center">
+                        <span className="text-white">{avatarInitial}</span>
+                      </div>
+                    )}
                     <div>
                       <h3 className="text-white font-medium">{currentUser.firstName} {currentUser.lastName}</h3>
                       <p className="text-light-gray text-xs">{currentUser.email}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex justify-between items-center text-sm text-light-gray mt-2 mb-2">
                     <span>{currentUser.semesterNumber}° Semestre - {currentUser.academicYear}</span>
                     <span className="text-red-600">{currentUser.role === 'tutor' ? 'Tutor' : 'Estudiante'}</span>
@@ -314,7 +392,7 @@ const Navbar = () => {
                     <Link to="/settings" className="block w-full text-left px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
                       Configuración
                     </Link>
-                    <button 
+                    <button
                       className="block w-full text-left px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"
                       onClick={handleLogout}
                     >
@@ -327,7 +405,7 @@ const Navbar = () => {
           </div>
         )}
       </nav>
-      
+
       {/* Modal para crear tutoría - solo se renderizará si el usuario es tutor */}
       {isTutor && (
         <CreateTutoringModal

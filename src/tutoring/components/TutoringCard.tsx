@@ -22,7 +22,7 @@ const TutoringCard: React.FC<TutoringCardProps> = ({ tutoring }) => {
       try {
         // Obtener información del tutor
         if (tutoring.tutorId) {
-          const tutorData = await UserService.getUserById(tutoring.tutorId);
+          const tutorData = await UserService.getUserById(tutoring.tutorId.toString());
           setTutor(tutorData);
         }
 
