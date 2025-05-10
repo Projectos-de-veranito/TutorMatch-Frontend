@@ -4,13 +4,14 @@ import Navbar from '../../../dashboard/components/Navbar';
 import Footer from '../../components/Footer';
 import EditProfileModal from '../../../user/components/EditProfileModal';
 import DeleteAccountModal from '../../../user/components/DeleteProfileModal';
-import { Edit, Loader, LogOut, Phone, Trash2, User } from 'lucide-react';
+import { Loader, LogOut, Pencil, Phone, Trash2, User } from 'lucide-react';
 import { UserService } from '../../../user/services/UserService';
 import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthService } from '../../services/authService';
+import LogoutModal from '../../../user/components/LogOutProfileModal';
 
 const ProfilePage: React.FC = () => {
   const [user, setUser] = useState<UserType | null>(null);
@@ -18,6 +19,8 @@ const ProfilePage: React.FC = () => {
   const [isEditModalVisible, setEditModalVisible] = useState(false);
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
+  const [isLogOutModalVisible, setLogOutModalVisible] = useState(false);
+  const [logoutAccount, setLogoutAccount] = useState(false);
   const toast = useRef<any>(null);
   const navigate = useNavigate();
   const { signOut, user: authUser } = useAuth();
@@ -104,6 +107,8 @@ const ProfilePage: React.FC = () => {
   };
 
   const handleLogout = async () => {
+
+    setLogoutAccount(true);
     try {
       const { success } = await signOut();
       if (success) {
@@ -117,6 +122,9 @@ const ProfilePage: React.FC = () => {
         detail: 'Error al cerrar sesión',
         life: 3000
       });
+    } finally {
+      setLogoutAccount(false);
+      setLogOutModalVisible(false);
     }
   };
 
@@ -187,10 +195,10 @@ const ProfilePage: React.FC = () => {
           <div className="bg-[#2c2c2c] p-6 rounded-lg shadow-lg w-full max-w-4xl relative">
             {/* Botón de editar */}
             <button
-              className="absolute top-4 right-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-sm flex items-center gap-2"
+              className="absolute top-4 right-4 px-4 py-2 bg-[#404040] text-white rounded-lg border border-[#555555] hover:bg-[#505050] hover:border-[#666666] transition-all text-sm flex items-center gap-2"
               onClick={() => setEditModalVisible(true)}
             >
-              <Edit /> Editar
+              <Pencil />
             </button>
 
             {/* Encabezado del perfil */}
@@ -243,19 +251,19 @@ const ProfilePage: React.FC = () => {
 
             {/* Opciones de perfil */}
             <div>
-              <div className="flex gap-4">
+              <div className="flex justify-between">
                 <button
-                  className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary-hover transition-all text-sm flex items-center gap-2"
-                  onClick={handleLogout}
+                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all text-sm flex items-center gap-2"
+                  onClick={() => setLogOutModalVisible(true)}
                 >
                   <LogOut /> Cerrar sesión
                 </button>
 
                 <button
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all text-sm flex items-center gap-2"
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-all text-sm flex items-center gap-2"
                   onClick={() => setDeleteModalVisible(true)}
                 >
-                  <Trash2 /> Eliminar cuenta
+                  <Trash2 />
                 </button>
               </div>
             </div>
@@ -278,6 +286,14 @@ const ProfilePage: React.FC = () => {
           onHide={() => setDeleteModalVisible(false)}
           onConfirm={handleDeleteAccount}
           loading={deletingAccount}
+        />
+
+        {/* Modal de confirmación para cerrar sesión */}
+        <LogoutModal
+          visible={isLogOutModalVisible}
+          onHide={() => setLogOutModalVisible(false)}
+          onConfirm={handleLogout}
+          loading={logoutAccount}
         />
       </div>
     </>

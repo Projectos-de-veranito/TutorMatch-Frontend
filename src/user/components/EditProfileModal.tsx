@@ -57,6 +57,7 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ visible, onHide, us
     onSave({ ...formData, avatar: profileImage });
     onHide();
     toast.current?.show({ severity: 'success', summary: 'Éxito', detail: 'Perfil actualizado correctamente', life: 3000 });
+    window.location.reload();
   };
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {

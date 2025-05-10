@@ -2,7 +2,7 @@ import axios from 'axios';
 import { User } from '../types/User';
 import { AuthService } from '../../public/services/authService';
 
-const API_URL = import.meta.env.VITE_TUTORMATCH_BACKEND_URL;;
+const API_URL = import.meta.env.VITE_TUTORMATCH_BACKEND_URL;
 
 
 export const UserService = {
