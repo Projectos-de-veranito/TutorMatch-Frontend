@@ -7,23 +7,26 @@ import { ProgressSpinner } from 'primereact/progressspinner';
 import { Course } from '../../course/types/Course';
 import { User } from '../../user/types/User';
 import TimeSlotSelectorBySection from '../../schedule/components/TimeSelectorBySection';
-import { SemesterService } from '../services/SemesterService';
+import { SemesterService } from '../../dashboard/services/SemesterService';
 import { TutoringService } from '../../tutoring/services/TutoringService';
 import { TutoringImageService } from '../../tutoring/services/TutoringImageService';
+import { TutoringSession } from '../../tutoring/types/Tutoring';
 
 // Props para el componente modal
-interface CreateTutoringModalProps {
+interface EditTutoringModalProps {
   visible: boolean;
   onHide: () => void;
   onSave: (tutoring: any) => void;
   currentUser: User;
+  tutoring: TutoringSession;
 }
 
-const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
+const EditTutoringModal: React.FC<EditTutoringModalProps> = ({
   visible,
   onHide,
   onSave,
-  currentUser
+  currentUser,
+  tutoring
 }) => {
   const toast = useRef<Toast>(null);
 
@@ -34,15 +37,15 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
 
   // Estado del formulario
-  const [description, setDescription] = useState<string>('');
-  const [price, setPrice] = useState<number>(0);
+  const [description, setDescription] = useState<string>(tutoring.description || '');
+  const [price, setPrice] = useState<number>(tutoring.price || 0);
   const [whatTheyWillLearn, setWhatTheyWillLearn] = useState<string>('');
-  const [courseImage, setCourseImage] = useState<string | undefined>(undefined);
+  const [courseImage, setCourseImage] = useState<string | undefined | null>(tutoring.imageUrl);
   const [originalFile, setOriginalFile] = useState<File | null>(null);
   const [uploadingImage, setUploadingImage] = useState<boolean>(false);
   const [imageUploaded, setImageUploaded] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
-  const [isFormValid, setIsFormValid] = useState<boolean>(false);
+  const [isFormValid, setIsFormValid] = useState<boolean>(true); // Por defecto true en edición
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Franjas horarias y días de la semana
@@ -56,6 +59,15 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     'FRI': 5,
     'SAT': 6
   };
+  const dayInverseMapping: Record<number, string> = {
+    0: 'SUN',
+    1: 'MON',
+    2: 'TUE',
+    3: 'WED',
+    4: 'THU',
+    5: 'FRI',
+    6: 'SAT'
+  };
   const morningTimeSlots = ['08-09', '09-10', '10-11', '11-12'];
   const afternoonTimeSlots = ['13-14', '14-15', '15-16', '16-17'];
   const eveningTimeSlots = ['18-19', '19-20', '20-21', '21-22'];
@@ -67,7 +79,20 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     const fetchSemesters = async () => {
       try {
         const data = await SemesterService.getSemesters();
-        setSemesters(data); // Guardar los semestres en el estado
+        setSemesters(data);
+        
+        // Buscar el semestre del curso actual
+        if (tutoring.courseId) {
+          for (const semester of data) {
+            const course = semester.courses.find((c: Course) => c.id === tutoring.courseId);
+            if (course) {
+              setSelectedSemester(semester.name);
+              setAvailableCourses(semester.courses);
+              setSelectedCourse(course);
+              break;
+            }
+          }
+        }
       } catch (error) {
         console.error('Error fetching semesters:', error);
         toast.current?.show({
@@ -80,27 +105,79 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     };
 
     fetchSemesters();
-  }, []);
+  }, [tutoring.courseId]);
 
-  // Inicializar las franjas horarias
+  // Inicializar las franjas horarias con los datos existentes
   useEffect(() => {
     initializeTimeSlots();
-  }, []);
+    
+    // Convertir el array whatTheyWillLearn a string para el textarea
+    if (Array.isArray(tutoring.whatTheyWillLearn)) {
+      setWhatTheyWillLearn(tutoring.whatTheyWillLearn.join('\n'));
+    } else if (typeof tutoring.whatTheyWillLearn === 'object' && tutoring.whatTheyWillLearn !== null) {
+      setWhatTheyWillLearn(Object.values(tutoring.whatTheyWillLearn).join('\n'));
+    }
+  }, [tutoring]);
 
   // Verificar validez del formulario cuando cambian los valores
   useEffect(() => {
     checkFormValidity();
   }, [selectedSemester, selectedCourse, description, price, whatTheyWillLearn, courseImage, availableTimes]);
 
-  // Inicializar slots de tiempo
+  // Inicializar slots de tiempo con los datos de la tutoría
   const initializeTimeSlots = () => {
     const times: { [day: string]: { [timeSlot: string]: boolean } } = {};
+    
+    // Inicializar todos los días y slots a false
     for (let day of daysOfWeek) {
       times[day] = {};
       for (let timeSlot of allTimeSlots) {
         times[day][timeSlot] = false;
       }
     }
+    
+    // Marcar los slots disponibles según la tutoría existente
+    if (tutoring.availableTimes && tutoring.availableTimes.length > 0) {
+      tutoring.availableTimes.forEach(slot => {
+        try {
+          // Obtener el día y hora
+          let dayIndex = -1;
+          
+          if (typeof slot.dayOfWeek === 'number') {
+            dayIndex = slot.dayOfWeek;
+          } else if (typeof slot.day_of_week === 'number') {
+            dayIndex = slot.day_of_week;
+          } else if (typeof slot.dayOfWeek === 'string') {
+            dayIndex = parseInt(slot.dayOfWeek);
+          } else if (typeof slot.day_of_week === 'string') {
+            dayIndex = parseInt(slot.day_of_week);
+          }
+          
+          if (dayIndex >= 0 && dayIndex <= 6) {
+            const day = dayInverseMapping[dayIndex];
+            
+            // Extraer la hora de inicio y fin
+            const startHour = slot.startTime ? parseInt(slot.startTime.split(':')[0]) :
+                             slot.start_time ? parseInt(slot.start_time.split(':')[0]) : -1;
+            
+            const endHour = slot.endTime ? parseInt(slot.endTime.split(':')[0]) :
+                           slot.end_time ? parseInt(slot.end_time.split(':')[0]) : -1;
+            
+            if (startHour >= 0 && endHour >= 0) {
+              const timeSlot = `${startHour}-${endHour}`;
+              
+              // Si el slot existe en nuestro array de slots, marcarlo como disponible
+              if (times[day] && allTimeSlots.includes(timeSlot)) {
+                times[day][timeSlot] = true;
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error al procesar horario disponible:', error, slot);
+        }
+      });
+    }
+    
     setAvailableTimes(times);
   };
 
@@ -109,7 +186,9 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     setSelectedSemester(semesterName);
     const selectedSemesterObj = semesters.find((sem) => sem.name === semesterName);
     setAvailableCourses(selectedSemesterObj ? selectedSemesterObj.courses : []);
-    setSelectedCourse(null);
+    if (!selectedSemesterObj?.courses.find(c => c.id === selectedCourse?.id)) {
+      setSelectedCourse(null);
+    }
   };
 
   // Validar formulario
@@ -120,7 +199,7 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
       description !== '' &&
       price > 0 &&
       whatTheyWillLearn !== '' &&
-      courseImage !== undefined &&
+      (courseImage !== undefined || originalFile !== null) &&
       areTimeSlotsSelected();
 
     setIsFormValid(valid);
@@ -137,8 +216,6 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     }
     return false;
   };
-
-
 
   // Manejar subida de archivo
   const onFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -171,7 +248,7 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     }
   };
 
-  const onConfirmAddTutoring = async () => {
+  const onConfirmEditTutoring = async () => {
     if (!isFormValid || !selectedCourse) return;
 
     try {
@@ -199,12 +276,11 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
         }
       }
 
-      // 3. Subir la imagen si existe
-      let imageUrl = '';
+      // 3. Subir la imagen si se ha cambiado
+      let imageUrl = courseImage;
       if (originalFile) {
         setUploadingImage(true);
         try {
-          // Usar el servicio actualizado que sigue la misma lógica que la carga de avatares
           imageUrl = await TutoringImageService.uploadTutoringImage(currentUser.id, originalFile);
           console.log('Imagen subida correctamente:', imageUrl);
         } catch (imageError: any) {
@@ -213,19 +289,20 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
           toast.current?.show({
             severity: 'error',
             summary: 'Error',
-            detail: imageError.message || 'No se pudo subir la imagen. Continuando con la creación de la tutoría.',
+            detail: imageError.message || 'No se pudo subir la imagen. Continuando con la actualización de la tutoría.',
             life: 3000,
           });
-
-          // Continuamos aunque la imagen falle, usando una URL por defecto
-          imageUrl = 'https://via.placeholder.com/500x300.png?text=Tutoring';
+          
+          // Mantener la imagen anterior si hay error
+          imageUrl = tutoring.imageUrl;
         } finally {
           setUploadingImage(false);
         }
       }
 
-      // 4. Crear el objeto de tutoría con todos los datos necesarios
-      const newTutoring = {
+      // 4. Crear el objeto de tutoría con todos los datos actualizados
+      const updatedTutoring = {
+        id: tutoring.id,
         tutorId: currentUser.id,
         courseId: selectedCourse.id,
         title: selectedCourse.name,
@@ -236,30 +313,29 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
         availableTimes: availableTimeSlots
       };
 
-      console.log('Enviando datos de tutoría:', newTutoring);
+      console.log('Enviando datos actualizados de tutoría:', updatedTutoring);
 
-      // 5. Guardar la tutoría con el servicio actualizado
-      const createdTutoring = await TutoringService.createTutoring(newTutoring);
+      // 5. Actualizar la tutoría con el servicio
+      const result = await TutoringService.updateTutoring(tutoring.id, updatedTutoring);
 
-      // 6. Mostrar mensaje de éxito y limpiar el formulario
+      // 6. Mostrar mensaje de éxito
       toast.current?.show({
         severity: 'success',
         summary: 'Éxito',
-        detail: 'Tutoría creada correctamente.',
+        detail: 'Tutoría actualizada correctamente.',
         life: 3000,
       });
 
-      resetForm();
-      onSave(createdTutoring);
+      onSave(result);
       onHide();
 
     } catch (error: any) {
-      console.error('Error al crear la tutoría:', error);
+      console.error('Error al actualizar la tutoría:', error);
 
       // Mensaje de error más descriptivo
       const errorMsg = error.response?.data?.message ||
         error.response?.data?.error ||
-        'No se pudo crear la tutoría. Por favor, revise los datos e inténtelo de nuevo.';
+        'No se pudo actualizar la tutoría. Por favor, revise los datos e inténtelo de nuevo.';
 
       toast.current?.show({
         severity: 'error',
@@ -272,23 +348,9 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     }
   };
 
-  // Resetear el formulario
-  const resetForm = () => {
-    setSelectedSemester('');
-    setSelectedCourse(null);
-    setDescription('');
-    setPrice(0);
-    setWhatTheyWillLearn('');
-    setCourseImage(undefined);
-    setOriginalFile(null);
-    setImageUploaded(false);
-    setErrorMessage('');
-    initializeTimeSlots();
-  };
-
   const headerElement = (
     <div className="w-full flex justify-between items-center text-white">
-      <h2 className="text-xl font-semibold">Add New Tutoring</h2>
+      <h2 className="text-xl font-semibold">Editar Tutoría</h2>
       <button
         onClick={onHide}
         className="text-white bg-transparent hover:text-gray-400"
@@ -317,7 +379,7 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
         <div className="space-y-6">
           {/* Selector de semestre */}
           <div>
-            <h3 className="text-lg font-medium mb-4">Course semester</h3>
+            <h3 className="text-lg font-medium mb-4">Semestre del curso</h3>
             <div className="grid grid-cols-4 gap-2">
               {semesters.map((semester) => (
                 <button
@@ -336,32 +398,32 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
 
           {/* Selector de curso */}
           <div>
-            <h3 className="text-lg font-medium mb-4">Course name</h3>
+            <h3 className="text-lg font-medium mb-4">Nombre del curso</h3>
             <Dropdown
               value={selectedCourse}
               options={availableCourses}
               onChange={(e) => setSelectedCourse(e.value)}
               optionLabel="name"
-              placeholder="Select course name"
+              placeholder="Seleccionar curso"
               className="w-full bg-[#1f1f1f] text-white border border-gray-600 rounded"
             />
           </div>
 
           {/* Descripción del curso */}
           <div>
-            <h3 className="text-lg font-medium mb-4">Description</h3>
+            <h3 className="text-lg font-medium mb-4">Descripción</h3>
             <InputTextarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={5}
-              placeholder="Enter your course description"
+              placeholder="Ingresa la descripción de tu tutoría"
               className="w-full bg-[#1f1f1f] text-white border border-gray-600 rounded"
             />
           </div>
 
           {/* Precio del curso */}
           <div>
-            <h3 className="text-lg font-medium mb-4">Price</h3>
+            <h3 className="text-lg font-medium mb-4">Precio</h3>
             <div className="flex items-center">
               <span className="text-white mr-2">S/.</span>
               <input
@@ -369,11 +431,11 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
                 value={price}
                 onChange={(e) => {
                   const value = parseFloat(e.target.value);
-                  setPrice(value > 0 ? value : 0); // Asegurarse de que el valor sea mayor a 0
+                  setPrice(value > 0 ? value : 0);
                 }}
-                min="0.01" // Mínimo permitido mayor a 0
-                step="0.01" // Permitir decimales
-                placeholder="Enter the price"
+                min="0.01"
+                step="0.01"
+                placeholder="Ingresa el precio"
                 className="w-full bg-[#1f1f1f] text-white border border-gray-600 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               />
             </div>
@@ -381,62 +443,90 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
 
           {/* Imagen del curso */}
           <div>
-            <h3 className="text-lg font-medium mb-4">Course image</h3>
+            <h3 className="text-lg font-medium mb-4">Imagen del curso</h3>
             <div className="space-y-2">
-              {/* Botón para subir archivos */}
-              {!courseImage && (
-                <div className="flex items-center space-x-4">
-                  <label
-                    htmlFor="file-upload"
-                    className={`block text-center text-sm text-white py-2 px-4 rounded bg-red-500 font-semibold cursor-pointer hover:bg-red-600 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                  >
-                    Upload image
-                  </label>
-                  <span className="text-sm text-gray-400">Upload your course image</span>
+              {/* Mostrar imagen actual o botón para subir */}
+              {!originalFile && courseImage ? (
+                <div className="mt-3 relative">
+                  <img
+                    src={courseImage}
+                    alt="Imagen actual"
+                    className="max-w-full h-auto max-h-48 rounded"
+                  />
+                  <div className="flex items-center space-x-4 mt-2">
+                    <label
+                      htmlFor="file-upload"
+                      className="block text-center text-sm text-white py-2 px-4 rounded bg-blue-500 font-semibold cursor-pointer hover:bg-blue-600"
+                    >
+                      Cambiar imagen
+                    </label>
+                    <button
+                      onClick={() => {
+                        setCourseImage(undefined);
+                        setOriginalFile(null);
+                        setImageUploaded(false);
+                      }}
+                      className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                    >
+                      Quitar imagen
+                    </button>
+                  </div>
                 </div>
+              ) : (
+                <>
+                  {/* Si no hay imagen o se ha quitado, mostrar botón para subir */}
+                  <div className="flex items-center space-x-4">
+                    <label
+                      htmlFor="file-upload"
+                      className={`block text-center text-sm text-white py-2 px-4 rounded bg-red-500 font-semibold cursor-pointer hover:bg-red-600 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      Subir imagen
+                    </label>
+                    <span className="text-sm text-gray-400">Sube una imagen para tu tutoría</span>
+                  </div>
+                  
+                  {/* Vista previa de la nueva imagen */}
+                  {originalFile && (
+                    <div className="mt-3 relative">
+                      {uploadingImage && (
+                        <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
+                          <ProgressSpinner style={{ width: '50px', height: '50px' }} strokeWidth="4" fill="#1f1f1f" animationDuration=".5s" />
+                        </div>
+                      )}
+                      <img
+                        src={courseImage || undefined}
+                        alt="Nueva imagen"
+                        className="max-w-full h-auto max-h-48 rounded"
+                      />
+                      <button
+                        onClick={() => {
+                          setCourseImage(tutoring.imageUrl);
+                          setOriginalFile(null);
+                          setImageUploaded(false);
+                          setErrorMessage('');
+                        }}
+                        className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
+                        disabled={uploadingImage}
+                      >
+                        Cancelar cambio
+                      </button>
+                    </div>
+                  )}
+                </>
               )}
+              
               <input
                 id="file-upload"
                 type="file"
                 accept="image/png, image/jpeg, image/jpg, image/gif, image/webp"
                 onChange={onFileUpload}
-                className="hidden" // Ocultar el input
+                className="hidden"
                 disabled={uploadingImage}
               />
 
-              {/* Vista previa de la imagen subida */}
-              {courseImage && (
-                <div className="mt-3 relative">
-                  {uploadingImage && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded">
-                      <ProgressSpinner style={{ width: '50px', height: '50px' }} strokeWidth="4" fill="#1f1f1f" animationDuration=".5s" />
-                    </div>
-                  )}
-                  <img
-                    src={courseImage}
-                    alt="Course Image"
-                    className="max-w-full h-auto max-h-48 rounded"
-                  />
-                  {/* Botón para eliminar la imagen */}
-                  <button
-                    onClick={() => {
-                      setCourseImage(undefined);
-                      setOriginalFile(null);
-                      setImageUploaded(false);
-                      setErrorMessage('');
-                    }}
-                    className="mt-2 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                    disabled={uploadingImage}
-                  >
-                    Remove image
-                  </button>
-                </div>
-              )}
-
               {/* Mensajes de éxito o error */}
               {imageUploaded && (
-                <p className="text-sm text-green-500">Image ready to upload</p>
+                <p className="text-sm text-green-500">Imagen lista para subir</p>
               )}
               {errorMessage && (
                 <p className="text-sm text-red-500">{errorMessage}</p>
@@ -446,23 +536,22 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
 
           {/* Qué aprenderán */}
           <div>
-            <h3 className="text-lg font-medium mb-4">What will they learn</h3>
+            <h3 className="text-lg font-medium mb-4">¿Qué aprenderán?</h3>
             <InputTextarea
               value={whatTheyWillLearn}
               onChange={(e) => setWhatTheyWillLearn(e.target.value)}
               rows={4}
-              placeholder="Enter what will your future students will learn"
+              placeholder="Ingresa lo que aprenderán tus estudiantes"
               className="w-full bg-[#1f1f1f] text-white border border-gray-600 rounded"
             />
-            <p className="text-xs text-gray-400 mt-1">Separate each learning point with a new line</p>
+            <p className="text-xs text-gray-400 mt-1">Separa cada punto de aprendizaje con un salto de línea</p>
           </div>
 
-          {/* Available times - Ahora usando nuestro nuevo componente */}
+          {/* Horarios disponibles */}
           <div>
-            <h3 className="text-lg font-medium mb-2">Your available times</h3>
-            <p className="text-sm text-gray-400 mb-4">Click on time slots to mark your availability</p>
+            <h3 className="text-lg font-medium mb-2">Tus horarios disponibles</h3>
+            <p className="text-sm text-gray-400 mb-4">Haz clic en las franjas horarias para marcar tu disponibilidad</p>
 
-            {/* Aquí utilizamos nuestro nuevo componente por secciones */}
             <TimeSlotSelectorBySection
               days={daysOfWeek}
               initialSelectedSlots={availableTimes}
@@ -472,19 +561,19 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
             />
           </div>
 
-          {/* Botón para añadir tutoría */}
+          {/* Botón para guardar cambios */}
           <div className="flex justify-end pt-4">
             <button
               className={`px-4 py-2 rounded ${isFormValid ? 'bg-primary hover:bg-primary-hover' : 'bg-gray-700 cursor-not-allowed'} text-white relative`}
-              onClick={onConfirmAddTutoring}
+              onClick={onConfirmEditTutoring}
               disabled={!isFormValid || isSubmitting || uploadingImage}
             >
               {isSubmitting ? (
                 <span className="flex items-center">
                   <ProgressSpinner style={{ width: '20px', height: '20px' }} strokeWidth="4" fill="none" animationDuration=".5s" className="mr-2" />
-                  Adding...
+                  Guardando...
                 </span>
-              ) : 'Add Tutoring'}
+              ) : 'Guardar cambios'}
             </button>
           </div>
         </div>
@@ -493,4 +582,4 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
   );
 };
 
-export default CreateTutoringModal;
+export default EditTutoringModal;

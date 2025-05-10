@@ -1,12 +1,20 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { TutoringSession, TutoringReview } from '../types/Tutoring';
-import { Check, Users, Monitor } from 'lucide-react';
+import { Check, Users, Monitor, Edit } from 'lucide-react';
 import { Rating } from 'primereact/rating';
 import ReviewList from './Review/ReviewList';
 import { User } from '../../user/types/User';
 import { Course } from '../../course/types/Course';
 import { Link } from 'react-router-dom';
 import Avatar from '../../user/components/Avatar';
+
+//
+import DeleteTutoringModal from '../../dashboard/components/DeleteTutoringModal';
+import { useNavigate } from 'react-router-dom';
+import { Toast } from 'primereact/toast';
+import { Trash } from 'lucide-react';
+import { TutoringService } from '../services/TutoringService';
+import EditTutoringModal from '../../dashboard/components/EditTutoringModal';
 
 interface TutoringDetailsProps {
     tutoring: TutoringSession;
@@ -21,8 +29,91 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
     tutor,
     course
 }) => {
-    const { title, description, price, whatTheyWillLearn, imageUrl, availableTimes } = tutoring;
+    const { title, description, price, whatTheyWillLearn, imageUrl, availableTimes, tutorId } = tutoring;
     const [averageRating, setAverageRating] = useState<number>(0);
+    const navigate = useNavigate();
+    const toast = useRef<Toast>(null);
+    const [isOwner, setIsOwner] = useState<boolean>(false);
+    const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
+    const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+
+    useEffect(() => {
+        const checkOwnership = () => {
+            try {
+                // Obtener el ID del usuario actual del localStorage
+                const currentUserId = localStorage.getItem('currentUserId');
+
+                // Verificar si hay un ID de usuario en localStorage y si el usuario está autenticado
+                if (currentUserId) {
+
+                    // Verificar si el ID del usuario coincide con el ID del tutor de la tutoría
+                    // Usar tutorId directamente de la tutoría o del objeto tutor si está disponible
+                    const tutorIdToCheck = tutorId || (tutor?.id);
+
+                    if (tutorIdToCheck && currentUserId === tutorIdToCheck) {
+                        setIsOwner(true);
+                    } else {
+                        setIsOwner(false);
+                    }
+                } else {
+                    setIsOwner(false);
+                }
+            } catch (error) {
+                console.error('Error al verificar propiedad de la tutoría:', error);
+                setIsOwner(false);
+            }
+        };
+
+        // Ejecutar la verificación inmediatamente
+        checkOwnership();
+
+        // Opcional: Configurar un intervalo para verificar periódicamente si el usuario cambió
+        // Esto puede ser útil si el componente permanece montado por mucho tiempo
+        const intervalId = setInterval(checkOwnership, 30000); // Verificar cada 30 segundos
+
+        // Limpiar el intervalo al desmontar el componente
+        return () => clearInterval(intervalId);
+    }, [tutorId, tutor]);
+
+
+    const handleDeleteTutoring = async () => {
+        try {
+            await TutoringService.deleteTutoring(tutoring.id);
+
+            toast.current?.show({
+                severity: 'success',
+                summary: 'Éxito',
+                detail: 'La tutoría ha sido eliminada correctamente',
+                life: 3000
+            });
+
+            // Redirigir a la página de dashboard después de eliminar
+            setTimeout(() => {
+                navigate('/dashboard');
+            }, 2000);
+        } catch (error) {
+            console.error('Error al eliminar la tutoría:', error);
+
+            toast.current?.show({
+                severity: 'error',
+                summary: 'Error',
+                detail: 'No se pudo eliminar la tutoría',
+                life: 3000
+            });
+        }
+    };
+
+    const handleUpdateTutoring = (updatedTutoring: any) => {
+        
+        window.location.reload();
+        
+        toast.current?.show({
+            severity: 'success',
+            summary: 'Éxito',
+            detail: 'Tutoría actualizada correctamente',
+            life: 3000
+        });
+    };
 
     // Calculate average rating from reviews
     useEffect(() => {
@@ -47,20 +138,19 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
 
     // Agrupar disponibilidades por día para la visualización
     const groupedAvailabilities: { [day: string]: string[] } = {};
-    
+
     // Inicializar todos los días para evitar problemas con días sin horarios
     daysOfWeek.forEach(day => {
         groupedAvailabilities[day] = [];
     });
 
     if (availableTimes && availableTimes.length > 0) {
-        console.log('Procesando horarios disponibles:', availableTimes);
 
         availableTimes.forEach(timeSlot => {
             try {
                 // Obtener el índice del día con soporte para ambos formatos
                 let dayIndex = -1;
-                
+
                 if (typeof timeSlot.day_of_week === 'number' && !isNaN(timeSlot.day_of_week)) {
                     dayIndex = timeSlot.day_of_week;
                 } else if (typeof timeSlot.dayOfWeek === 'number' && !isNaN(timeSlot.dayOfWeek)) {
@@ -94,7 +184,7 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                     const [startHours, startMinutes] = startTime.split(':');
                     startTime = `${startHours}:${startMinutes}`;
                 }
-                
+
                 if (endTime.includes(':')) {
                     const [endHours, endMinutes] = endTime.split(':');
                     endTime = `${endHours}:${endMinutes}`;
@@ -103,12 +193,10 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                 // Extraer solo las horas para el formato de los slots de tiempo
                 const startHour = parseInt(startTime.split(':')[0], 10);
                 const endHour = parseInt(endTime.split(':')[0], 10);
-                
+
                 // Si hay minutos en el tiempo final, redondear hacia arriba
                 const endMinutes = endTime.split(':')[1] ? parseInt(endTime.split(':')[1], 10) : 0;
                 const adjustedEndHour = endMinutes > 0 ? endHour + 1 : endHour;
-
-                console.log(`Procesando horario: día ${day}, hora ${startHour}-${adjustedEndHour}`);
 
                 // Crear slots para cada hora del rango
                 for (let hour = startHour; hour < adjustedEndHour; hour++) {
@@ -121,8 +209,6 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                 console.error('Error al procesar horario:', error, timeSlot);
             }
         });
-
-        console.log('Horarios agrupados por día:', groupedAvailabilities);
     } else {
         console.warn('No hay horarios disponibles o el formato no es válido:', availableTimes);
     }
@@ -159,22 +245,48 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
 
     return (
         <div className="text-white w-full bg-[#1e1e1e] min-h-screen">
+            <Toast ref={toast} />
+
+            <DeleteTutoringModal
+                visible={deleteModalVisible}
+                onHide={() => setDeleteModalVisible(false)}
+                onDelete={handleDeleteTutoring}
+                tutoring={tutoring}
+            />
+            {isOwner && (
+                <EditTutoringModal
+                    visible={editModalVisible}
+                    onHide={() => setEditModalVisible(false)}
+                    onSave={handleUpdateTutoring}
+                    currentUser={tutor as User}
+                    tutoring={tutoring}
+                />
+            )}
             <style>{customStyles}</style>
 
             {/* Header con información básica */}
             <div className="w-full bg-[#252525]">
                 <div className="container mx-auto px-4 py-6">
-                    <div className="text-sm text-red-400 mb-4">
-                        <span>
-                            {course
-                                ? `${course.semesterNumber}° Semestre > ${course.name}`
-                                : 'Tutoría'}
-                        </span>
+                    <div className="flex gap-2 mb-4">
+                        {course && (
+                            <>
+                                <span className="px-2 py-1 bg-red-600/20 text-red-500 rounded-full text-xs font-medium">
+                                    {course.semesterNumber}° Semestre
+                                </span>
+                                <span className="px-2 py-1 bg-green-600/20 text-green-500 rounded-full text-xs font-medium">
+                                    {course.name}
+                                </span>
+                            </>
+                        )}
+                        {!course && (
+                            <span className="px-2 py-1 bg-gray-600/20 text-gray-400 rounded-full text-xs font-medium">
+                                Tutoría
+                            </span>
+                        )}
                     </div>
 
                     <h1 className="text-3xl md:text-4xl font-bold mb-4">{title}</h1>
                     <p className="text-white mb-4">{description}</p>
-
                     <div className="flex items-center gap-2 mb-4">
                         <span className="text-red-600 font-semibold text-lg">
                             {averageRating.toFixed(1)}
@@ -226,7 +338,7 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                             {/* Sección: Horarios disponibles */}
                             <div className="p-6 border border-[#4a4a4a] rounded-lg bg-[#252525]">
                                 <h2 className="text-xl font-semibold mb-6">Horarios disponibles del tutor</h2>
-                                
+
                                 <div className="overflow-x-auto">
                                     <table className="w-full border-collapse min-w-[600px] table-fixed">
                                         <thead>
@@ -250,9 +362,9 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                                                 <div
                                                                     className={`h-10 flex items-center justify-center rounded 
                                                                     ${isAvailable
-                                                                        ? 'bg-green-600 text-white font-bold'
-                                                                        : 'border border-[#4a4a4a] text-gray-500'
-                                                                    }`}
+                                                                            ? 'bg-green-600 text-white font-bold'
+                                                                            : 'border border-[#4a4a4a] text-gray-500'
+                                                                        }`}
                                                                 >
                                                                     {isAvailable ? <Check size={16} /> : ''}
                                                                 </div>
@@ -287,9 +399,31 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                 />
                                 <h3 className="text-xl font-bold mb-2">{title}</h3>
                                 <p className="text-2xl font-bold text-[#f05c5c] my-3">S/. {price.toFixed(2)} </p>
-                                <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
-                                    Solicitar Tutoría
-                                </button>
+                    {/* Cambiar entre "Solicitar Tutoría" y "Editar Tutoría" según isOwner */}
+                    {isOwner ? (
+                        <button 
+                            onClick={() => setEditModalVisible(true)}
+                            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all my-4 flex items-center justify-center gap-2"
+                        >
+                            <Edit size={18} />
+                            <span>Editar Tutoría</span>
+                        </button>
+                    ) : (
+                        <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
+                            Solicitar Tutoría
+                        </button>
+                    )}
+                                {/* Opción alternativa: Mostrar el botón de eliminar debajo del botón de solicitar */}
+                                {isOwner && (
+                                    <button
+                                        onClick={() => setDeleteModalVisible(true)}
+                                        className="w-full py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-all mb-4 flex items-center justify-center gap-2"
+                                    >
+                                        <Trash size={18} />
+                                        <span>Eliminar tutoría</span>
+                                    </button>
+                                )}
+
                                 <div className="w-full text-sm text-gray-300">
                                     <p className="font-semibold text-white mb-2">Esta tutoría incluye:</p>
                                     <ul className="space-y-2">
@@ -304,7 +438,9 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                     </ul>
                                 </div>
                             </div>
+
                         </div>
+
                     </div>
                 </div>
             </div>
