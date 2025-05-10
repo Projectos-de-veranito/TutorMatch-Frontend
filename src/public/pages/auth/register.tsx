@@ -11,14 +11,16 @@ import { useRef } from 'react';
 import { UserRole, UserStatus } from "../../../user/types/User";
 import NavbarAuth from "../../components/NavbarAuth";
 import { useAuth } from "../../hooks/useAuth";
+import TermsModal from "../../components/T&CModal";
 
 export default function RegisterPage() {
   const toast = useRef<any>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const { signUp } = useAuth();
-  
+
   // Estado del formulario ajustado según el tipo User
   const [formData, setFormData] = useState({
     email: "",
@@ -52,8 +54,8 @@ export default function RegisterPage() {
   };
 
   const handleSemesterChange = (e: { value: number | null | undefined }) => {
-    setFormData((prev) => ({ 
-      ...prev, 
+    setFormData((prev) => ({
+      ...prev,
       semesterNumber: e.value !== null && e.value !== undefined ? e.value : 1
     }));
   };
@@ -75,51 +77,61 @@ export default function RegisterPage() {
 
   const handleSubmitStep2 = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+
+    // Validar campos primero
+    if (!formData.firstName || !formData.lastName || !formData.phone || !formData.gender) {
+      toast.current.show({
+        severity: 'error',
+        summary: 'Campos requeridos',
+        detail: 'Por favor completa todos los campos obligatorios',
+        life: 3000
+      });
+      return;
+    }
+
+    // Mostrar el modal de términos y condiciones
+    setShowTermsModal(true);
+  };
+
+  // Añade esta nueva función para manejar la aceptación de términos
+  const handleAcceptTerms = async () => {
+    setShowTermsModal(false);
     setLoading(true);
-    
+
     try {
-      if (!formData.firstName || !formData.lastName || !formData.gender) {
-        throw new Error("Por favor completa todos los campos obligatorios");
-      }
-      
       // Almacenar los datos en localStorage para el proceso de verificación
       localStorage.setItem('pendingRegistration', JSON.stringify({
         email: formData.email,
         userData: {
           ...formData,
           // Convertir semesterNumber a número explícitamente
-          semesterNumber: typeof formData.semesterNumber === 'number' 
-            ? formData.semesterNumber 
+          semesterNumber: typeof formData.semesterNumber === 'number'
+            ? formData.semesterNumber
             : Number(formData.semesterNumber) || 1,
           createdAt: new Date(),
           updatedAt: new Date()
         }
       }));
-  
+
       // Preparar datos completos para el registro
       const userData = {
         firstName: formData.firstName,
         lastName: formData.lastName,
+        phone: formData.phone,
         gender: formData.gender,
-        semesterNumber: typeof formData.semesterNumber === 'number' 
-          ? formData.semesterNumber 
+        semesterNumber: typeof formData.semesterNumber === 'number'
+          ? formData.semesterNumber
           : Number(formData.semesterNumber) || 1,
         role: formData.role
       };
-  
-      console.log('Datos a enviar (ajustados):', {
-        email: formData.email,
-        password: formData.password,
-        ...userData
-      });
-      
+
       // Llamada al endpoint de registro con datos completos
       const { success, message } = await signUp(
-        formData.email, 
-        formData.password, 
+        formData.email,
+        formData.password,
         userData
       );
-      
+
       if (success) {
         toast.current.show({
           severity: 'success',
@@ -127,7 +139,7 @@ export default function RegisterPage() {
           detail: 'Tu cuenta está siendo creada. Por favor, verifica tu correo electrónico.',
           life: 3000
         });
-        
+
         // Redirigir a la página de verificación
         setTimeout(() => {
           window.location.href = `/verify-email?email=${encodeURIComponent(formData.email)}`;
@@ -135,7 +147,7 @@ export default function RegisterPage() {
       } else {
         throw new Error(message || "Error al registrar usuario");
       }
-      
+
     } catch (error: any) {
       toast.current.show({
         severity: 'error',
@@ -147,7 +159,7 @@ export default function RegisterPage() {
       setLoading(false);
     }
   };
-  
+
   const goBack = () => {
     setStep(1);
   };
@@ -295,6 +307,32 @@ export default function RegisterPage() {
                   />
                 </div>
                 <div className="space-y-1">
+                  <label htmlFor="phone" className="text-light">Teléfono</label>
+                  <InputText
+                  id="phone"
+                  name="phone"
+                  placeholder="987654321"
+                  required
+                  value={formData.phone}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    if (/^9\d{0,8}$/.test(value) || value === '') {
+                    handleChange(e);
+                    }
+                  }}
+                  maxLength={9}
+                  keyfilter="int"
+                  className="w-full bg-dark-light text-light border border-dark-border px-3 py-2 rounded-md"
+                  onBlur={(e) => {
+                    if (e.target.value.length !== 9) {
+                    e.target.setCustomValidity("El número debe tener exactamente 9 dígitos");
+                    } else {
+                    e.target.setCustomValidity("");
+                    }
+                  }}
+                  />
+                </div>
+                <div className="space-y-1">
                   <label htmlFor="gender" className="text-light">Género</label>
                   <Dropdown
                     id="gender"
@@ -329,7 +367,7 @@ export default function RegisterPage() {
                     inputClassName="bg-dark-light text-light"
                   />
                 </div>
-                
+
                 <div className="flex gap-3 pt-2">
                   <Button
                     label="Atrás"
@@ -351,6 +389,13 @@ export default function RegisterPage() {
           )}
         </Card>
       </main>
+
+      {/* Al final del componente, antes del último cierre */}
+      <TermsModal
+        visible={showTermsModal}
+        onHide={() => setShowTermsModal(false)}
+        onAccept={handleAcceptTerms}
+      />
     </div>
   );
 }
