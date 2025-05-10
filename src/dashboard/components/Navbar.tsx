@@ -293,9 +293,6 @@ const Navbar = () => {
                         <Link to="/profile" className="block w-full text-center px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
                           Ver perfil completo
                         </Link>
-                        <Link to="/settings" className="block w-full text-center px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
-                          Configuración
-                        </Link>
                         <button
                           className="block w-full text-center px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"
                           onClick={handleLogout}
@@ -388,9 +385,6 @@ const Navbar = () => {
                   <div className="space-y-1 mt-2">
                     <Link to="/profile" className="block w-full text-left px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
                       Ver perfil completo
-                    </Link>
-                    <Link to="/settings" className="block w-full text-left px-3 py-2 text-white hover:bg-dark-light hover:text-red-500 rounded">
-                      Configuración
                     </Link>
                     <button
                       className="block w-full text-left px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"

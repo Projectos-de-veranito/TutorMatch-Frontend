@@ -167,7 +167,7 @@ const Sidebar: React.FC<SidebarProps> = ({ className }) => {
                 >
                   <div className="mr-3 text-primary">{item.icon}</div>
                   <div>
-                    <div className="font-medium">{item.semester}</div>
+                    <div className="font-medium">{item.semester} Semester</div>
                   </div>
                 </Link>
               ))
