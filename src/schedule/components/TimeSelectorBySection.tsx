@@ -13,7 +13,7 @@ const TimeSlotSelectorBySection: React.FC<TimeSlotSelectorBySectionProps> = ({
   onChange
 }) => {
   // Define los rangos de horas para cada sección del día
-  const morningTimeSlots = ['8-9', '9-10', '10-11', '11-12'];
+  const morningTimeSlots = ['08-09', '09-10', '10-11', '11-12'];
   const afternoonTimeSlots = ['13-14', '14-15', '15-16', '16-17'];
   const eveningTimeSlots = ['18-19', '19-20', '20-21', '21-22'];
   
@@ -102,7 +102,7 @@ const TimeSlotSelectorBySection: React.FC<TimeSlotSelectorBySectionProps> = ({
           }`}
           onClick={() => setSelectedTab('morning')}
         >
-          Mañana (8h-12h)
+          Mañana (08h-12h)
         </button>
         <button
           className={`py-2 px-4 font-medium text-sm transition-colors duration-200 ${
