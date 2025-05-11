@@ -13,6 +13,7 @@ import NotFoundPage from './public/pages/not-found/NotFoundPage';
 import ProfilePage from './public/pages/profile/ProfilePage';
 import VerifyEmailPage from './public/pages/auth/verify-email';
 import { AvatarProvider } from './user/hooks/avatarContext';
+import PaymentPage from './payment/pages/PaymentPage';
 
 const App = () => {
   return (
@@ -30,6 +31,7 @@ const App = () => {
           <Route path="/register/success" element={<RegisterSuccessPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="/payments" element={<PaymentPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </BrowserRouter>
