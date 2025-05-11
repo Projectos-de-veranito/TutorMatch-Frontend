@@ -36,10 +36,10 @@ const TutoringDetailsPage: React.FC = () => {
         // Obtener las reseñas
         const reviewsData = await TutoringService.getReviews(tutoringId);
         setReviews(reviewsData);
-        
+
         // Cargas en paralelo para mejor rendimiento
         const promises = [];
-        
+
         // Obtener el tutor
         if (tutoringData.tutorId) {
           promises.push(
@@ -51,7 +51,7 @@ const TutoringDetailsPage: React.FC = () => {
               })
           );
         }
-        
+
         // Obtener el curso
         if (tutoringData.courseId) {
           promises.push(
@@ -63,10 +63,10 @@ const TutoringDetailsPage: React.FC = () => {
               })
           );
         }
-        
+
         // Esperar a que todas las promesas se resuelvan
         await Promise.all(promises);
-        
+
       } catch (error: any) {
         console.error('Error al cargar los datos:', error);
         setError(error.message || 'Error al cargar los detalles de la tutoría');
@@ -80,14 +80,18 @@ const TutoringDetailsPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-[#1e1e1e]">
-        <div className="text-center">
-          <ProgressSpinner style={{ width: '50px', height: '50px' }} 
-                           strokeWidth="4" 
-                           fill="#1e1e1e" 
-                           animationDuration=".5s" />
-          <p className="text-white mt-4">Cargando detalles de la tutoría...</p>
+      <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <ProgressSpinner style={{ width: '50px', height: '50px' }}
+              strokeWidth="4"
+              fill="#1e1e1e"
+              animationDuration=".5s" />
+            <p className="text-white mt-4">Cargando detalles de la tutoría...</p>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -106,11 +110,11 @@ const TutoringDetailsPage: React.FC = () => {
   return (
     <>
       <Navbar />
-      <TutoringDetails 
-        tutoring={tutoring} 
-        reviews={reviews} 
-        tutor={tutor || undefined} 
-        course={course || undefined} 
+      <TutoringDetails
+        tutoring={tutoring}
+        reviews={reviews}
+        tutor={tutor || undefined}
+        course={course || undefined}
       />
       <Footer />
     </>

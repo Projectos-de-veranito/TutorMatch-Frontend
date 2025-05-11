@@ -6,6 +6,7 @@ import { User as UserType } from '../../user/types/User';
 import { UserService } from '../../user/services/UserService';
 import { AuthService } from '../../public/services/authService';
 import { useAuth } from '../../public/hooks/useAuth';
+import LogoutModal from '../../user/components/LogOutProfileModal';
 
 const Navbar = () => {
   const [modalVisible, setModalVisible] = useState(false);
@@ -14,9 +15,13 @@ const Navbar = () => {
   const [currentUser, setCurrentUser] = useState<UserType | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [isLogOutModalVisible, setLogOutModalVisible] = useState(false);
+  const [logoutAccount, setLogoutAccount] = useState(false);
   const dropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const navigate = useNavigate();
+  const toast = useRef<any>(null);
+
   const { signOut, user: authUser } = useAuth();
 
   // Obtener los datos del usuario actual
@@ -79,6 +84,7 @@ const Navbar = () => {
     setModalVisible(false);
   };
 
+
   const handleSaveTutoring = (tutoring: any) => {
     console.log('Tutoring saved:', tutoring);
     // Aquí irían las llamadas a la API para guardar la tutoría
@@ -94,18 +100,24 @@ const Navbar = () => {
   };
 
   const handleLogout = async () => {
-    try {
-      // Usar el método signOut del hook useAuth para mantener consistencia
-      const { success, message } = await signOut();
 
+    setLogoutAccount(true);
+    try {
+      const { success } = await signOut();
       if (success) {
-        // Redirigir al login
         navigate('/login');
-      } else {
-        console.error('Error al cerrar sesión:', message);
       }
     } catch (error) {
-      console.error('Error inesperado al cerrar sesión:', error);
+      console.error('Error al cerrar sesión:', error);
+      toast.current?.show({
+        severity: 'error',
+        summary: 'Error',
+        detail: 'Error al cerrar sesión',
+        life: 3000
+      });
+    } finally {
+      setLogoutAccount(false);
+      setLogOutModalVisible(false);
     }
   };
 
@@ -130,6 +142,8 @@ const Navbar = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [dropdownRef, mobileMenuRef]);
+
+
 
   const isValidAvatarUrl = (url: string | undefined): boolean => {
     return !!url && (url.startsWith('http://') || url.startsWith('https://'));
@@ -295,7 +309,7 @@ const Navbar = () => {
                         </Link>
                         <button
                           className="block w-full text-center px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"
-                          onClick={handleLogout}
+                          onClick={() => setLogOutModalVisible(true)}
                         >
                           Cerrar sesión
                         </button>
@@ -388,7 +402,7 @@ const Navbar = () => {
                     </Link>
                     <button
                       className="block w-full text-left px-3 py-2 text-red-500 hover:bg-dark-light hover:text-red-500 rounded"
-                      onClick={handleLogout}
+                      onClick={() => setLogOutModalVisible(true)}
                     >
                       Cerrar sesión
                     </button>
@@ -409,6 +423,14 @@ const Navbar = () => {
           currentUser={currentUser}
         />
       )}
+
+      {/* Modal de confirmación para cerrar sesión */}
+      <LogoutModal
+        visible={isLogOutModalVisible}
+        onHide={() => setLogOutModalVisible(false)}
+        onConfirm={handleLogout}
+        loading={logoutAccount}
+      />
     </>
   );
 };

@@ -104,9 +104,9 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
     };
 
     const handleUpdateTutoring = (updatedTutoring: any) => {
-        
+
         window.location.reload();
-        
+
         toast.current?.show({
             severity: 'success',
             summary: 'Éxito',
@@ -399,20 +399,20 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                 />
                                 <h3 className="text-xl font-bold mb-2">{title}</h3>
                                 <p className="text-2xl font-bold text-[#f05c5c] my-3">S/. {price.toFixed(2)} </p>
-                    {/* Cambiar entre "Solicitar Tutoría" y "Editar Tutoría" según isOwner */}
-                    {isOwner ? (
-                        <button 
-                            onClick={() => setEditModalVisible(true)}
-                            className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all my-4 flex items-center justify-center gap-2"
-                        >
-                            <Edit size={18} />
-                            <span>Editar Tutoría</span>
-                        </button>
-                    ) : (
-                        <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
-                            Solicitar Tutoría
-                        </button>
-                    )}
+                                {/* Cambiar entre "Solicitar Tutoría" y "Editar Tutoría" según isOwner */}
+                                {isOwner ? (
+                                    <button
+                                        onClick={() => setEditModalVisible(true)}
+                                        className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-all my-4 flex items-center justify-center gap-2"
+                                    >
+                                        <Edit size={18} />
+                                        <span>Editar Tutoría</span>
+                                    </button>
+                                ) : (
+                                    <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
+                                        Solicitar Tutoría
+                                    </button>
+                                )}
                                 {/* Opción alternativa: Mostrar el botón de eliminar debajo del botón de solicitar */}
                                 {isOwner && (
                                     <button

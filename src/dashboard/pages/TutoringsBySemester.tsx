@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import TutoringCard from '../../tutoring/components/TutoringCard';
 import { TutoringService } from '../../tutoring/services/TutoringService';
 import { SemesterService } from '../services/SemesterService';
+import { ProgressSpinner } from 'primereact/progressspinner';
 
 const TutoringsBySemester: React.FC = () => {
   const { semesterId } = useParams<{ semesterId: string }>();
@@ -27,7 +28,7 @@ const TutoringsBySemester: React.FC = () => {
       try {
         // 1. Obtener información del semestre
         const semesterData = await SemesterService.getSemesterById(semesterId);
-        
+
         // Guardar el nombre del semestre para mostrarlo en el título
         if (semesterData && semesterData.name) {
           setSemesterName(semesterData.name);
@@ -37,13 +38,13 @@ const TutoringsBySemester: React.FC = () => {
 
         // 2. Obtener todos los cursos del semestre
         const courses = semesterData.courses || [];
-        
+
         // 3. Obtener todas las tutorías
         const allTutorings = await TutoringService.getAllTutoringSessions();
-        
+
         // 4. Filtrar tutorías por los cursos del semestre
         const courseIds = courses.map((course: any) => course.id);
-        const filteredTutorings = allTutorings.filter(tutoring => 
+        const filteredTutorings = allTutorings.filter(tutoring =>
           tutoring.courseId && courseIds.includes(tutoring.courseId)
         );
 
@@ -69,7 +70,13 @@ const TutoringsBySemester: React.FC = () => {
 
         {loading ? (
           <div className="flex justify-center">
-            <p className="text-gray-400">Cargando tutorías...</p>
+           <div className="text-center">
+             <ProgressSpinner style={{ width: '50px', height: '50px' }}
+              strokeWidth="4"
+              fill="#1e1e1e"
+              animationDuration=".5s" />
+            <p className="text-white mt-4">Cargando tutorías...</p>
+           </div>
           </div>
         ) : error ? (
           <div className="bg-red-900 bg-opacity-25 border border-red-700 rounded-md p-4 mb-6">

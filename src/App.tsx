@@ -18,20 +18,21 @@ const App = () => {
   return (
     <AvatarProvider>
       <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LoginPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/verify-email" element={<VerifyEmailPage />} />
-        <Route path="/semester/:semesterId" element={<TutoringsBySemester />} />
-        <Route path="/tutoring/:tutoringId" element={<TutoringDetailsPage />} />
-        <Route path="/register/success" element={<RegisterSuccessPage />} />
-        <Route path="/profile" element={<ProfilePage />} />
-        <Route path="*" element={<NotFoundPage />} />
-      </Routes>
-    </BrowserRouter>
+        <Routes>
+          <Route path="/" element={<LoginPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/semester/:semesterId" element={<TutoringsBySemester />} />
+          <Route path="/tutoring/:tutoringId" element={<TutoringDetailsPage />} />
+          <Route path="/register/success" element={<RegisterSuccessPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/profile/:userId" element={<ProfilePage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </BrowserRouter>
     </AvatarProvider>
   );
 }

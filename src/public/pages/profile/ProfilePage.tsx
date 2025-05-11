@@ -8,7 +8,7 @@ import { Loader, LogOut, Pencil, Phone, Trash2, User } from 'lucide-react';
 import { UserService } from '../../../user/services/UserService';
 import { Toast } from 'primereact/toast';
 import { useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthService } from '../../services/authService';
 import LogoutModal from '../../../user/components/LogOutProfileModal';
@@ -20,16 +20,33 @@ const ProfilePage: React.FC = () => {
   const [isDeleteModalVisible, setDeleteModalVisible] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
   const [isLogOutModalVisible, setLogOutModalVisible] = useState(false);
+  const [isCurrentUser, setIsCurrentUser] = useState(false);
   const [logoutAccount, setLogoutAccount] = useState(false);
   const toast = useRef<any>(null);
   const navigate = useNavigate();
   const { signOut, user: authUser } = useAuth();
+  const { userId } = useParams<{ userId: string }>();
 
   // Obtener los datos del usuario actual
   useEffect(() => {
     const fetchUserData = async () => {
       try {
         setLoading(true);
+
+        // Si hay un userId en la URL, estamos viendo el perfil de otro usuario
+        if (userId) {
+          // Verificar si el usuario que estamos viendo es el usuario actual
+          const currentUserId = AuthService.getCurrentUserId();
+          setIsCurrentUser(userId === currentUserId);
+
+          // Obtener los datos del usuario por ID
+          const userData = await UserService.getUserById(userId);
+          setUser(userData);
+          return;
+        }
+
+        // Si no hay userId, estamos viendo nuestro propio perfil
+        setIsCurrentUser(true);
 
         // Primero intentamos obtener el usuario del hook useAuth
         if (authUser) {
@@ -77,7 +94,7 @@ const ProfilePage: React.FC = () => {
     };
 
     fetchUserData();
-  }, [authUser, navigate]);
+  }, [authUser, navigate, userId]);
 
   const handleSaveProfile = async (updatedUser: UserType) => {
     try {
@@ -166,9 +183,13 @@ const ProfilePage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-64">
-        <Loader className="animate-spin text-primary h-10 w-10 mb-4" />
-        <div className="text-white">Cargando datos del perfil...</div>
+      <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
+        <Navbar />
+        <div className="flex-1 flex items-center justify-center">
+          <Loader className="animate-spin text-primary h-10 w-10 mb-4" />
+          <div className="text-white ml-3">Cargando datos del perfil...</div>
+        </div>
+        <Footer />
       </div>
     );
   }
@@ -193,13 +214,15 @@ const ProfilePage: React.FC = () => {
         {/* Contenido principal */}
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="bg-[#2c2c2c] p-6 rounded-lg shadow-lg w-full max-w-4xl relative">
-            {/* Botón de editar */}
-            <button
-              className="absolute top-4 right-4 px-4 py-2 bg-[#404040] text-white rounded-lg border border-[#555555] hover:bg-[#505050] hover:border-[#666666] transition-all text-sm flex items-center gap-2"
-              onClick={() => setEditModalVisible(true)}
-            >
-              <Pencil />
-            </button>
+            {/* Botón de editar - solo visible para el usuario actual */}
+            {isCurrentUser && (
+              <button
+                className="absolute top-4 right-4 px-4 py-2 bg-[#404040] text-white rounded-lg border border-[#555555] hover:bg-[#505050] hover:border-[#666666] transition-all text-sm flex items-center gap-2"
+                onClick={() => setEditModalVisible(true)}
+              >
+                <Pencil />
+              </button>
+            )}
 
             {/* Encabezado del perfil */}
             <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
@@ -249,52 +272,57 @@ const ProfilePage: React.FC = () => {
               </p>
             </div>
 
-            {/* Opciones de perfil */}
-            <div>
-              <div className="flex justify-between">
-                <button
-                  className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all text-sm flex items-center gap-2"
-                  onClick={() => setLogOutModalVisible(true)}
-                >
-                  <LogOut /> Cerrar sesión
-                </button>
+            {/* Opciones de perfil - solo visibles para el usuario actual */}
+            {isCurrentUser && (
+              <div>
+                <div className="flex justify-between">
+                  <button
+                    className="px-4 py-2 bg-gray-700 text-white rounded-lg hover:bg-gray-600 transition-all text-sm flex items-center gap-2"
+                    onClick={() => setLogOutModalVisible(true)}
+                  >
+                    <LogOut /> Cerrar sesión
+                  </button>
 
-                <button
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-all text-sm flex items-center gap-2"
-                  onClick={() => setDeleteModalVisible(true)}
-                >
-                  <Trash2 />
-                </button>
+                  <button
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-500 transition-all text-sm flex items-center gap-2"
+                    onClick={() => setDeleteModalVisible(true)}
+                  >
+                    <Trash2 />
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
         {/* Footer */}
         <Footer />
 
-        <EditProfileModal
-          visible={isEditModalVisible}
-          onHide={() => setEditModalVisible(false)}
-          user={user}
-          onSave={handleSaveProfile}
-        />
+        {/* Modales - solo se renderizan para el usuario actual */}
+        {isCurrentUser && (
+          <>
+            <EditProfileModal
+              visible={isEditModalVisible}
+              onHide={() => setEditModalVisible(false)}
+              user={user}
+              onSave={handleSaveProfile}
+            />
 
-        {/* Modal de confirmación para eliminar cuenta */}
-        <DeleteAccountModal
-          visible={isDeleteModalVisible}
-          onHide={() => setDeleteModalVisible(false)}
-          onConfirm={handleDeleteAccount}
-          loading={deletingAccount}
-        />
+            <DeleteAccountModal
+              visible={isDeleteModalVisible}
+              onHide={() => setDeleteModalVisible(false)}
+              onConfirm={handleDeleteAccount}
+              loading={deletingAccount}
+            />
 
-        {/* Modal de confirmación para cerrar sesión */}
-        <LogoutModal
-          visible={isLogOutModalVisible}
-          onHide={() => setLogOutModalVisible(false)}
-          onConfirm={handleLogout}
-          loading={logoutAccount}
-        />
+            <LogoutModal
+              visible={isLogOutModalVisible}
+              onHide={() => setLogOutModalVisible(false)}
+              onConfirm={handleLogout}
+              loading={logoutAccount}
+            />
+          </>
+        )}
       </div>
     </>
   );
