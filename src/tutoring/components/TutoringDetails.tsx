@@ -103,7 +103,7 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
         }
     };
 
-    const handleUpdateTutoring = (updatedTutoring: any) => {
+    const handleUpdateTutoring = () => {
 
         window.location.reload();
 
