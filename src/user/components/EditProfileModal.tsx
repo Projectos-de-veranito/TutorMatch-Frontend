@@ -254,19 +254,24 @@ const EditProfileModal: React.FC<EditProfileModalProps> = ({ visible, onHide, us
           <div>
             <h3 className="text-lg font-medium mb-4">Foto de Perfil</h3>
             <div className="flex items-center gap-4">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border border-gray-300 flex items-center justify-center">
+              <div className="relative w-24 h-24 rounded-full overflow-hidden border border-gray-300 flex items-center justify-center bg-primary">
                 {uploadingImage ? (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50">
                     <ProgressSpinner style={{ width: '50px', height: '50px' }} strokeWidth="4" fill="#1f1f1f" animationDuration=".5s" />
                   </div>
-                ) : null}
-                <Image
-                  src={profileImage || '/assets/imgs/avatar-placeholder.png'}
-                  alt="Foto de perfil"
-                  width="100"
-                  preview
-                  className="object-cover"
-                />
+                ) : profileImage ? (
+                  <Image
+                    src={profileImage}
+                    alt="Foto de perfil"
+                    width="100"
+                    preview
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-white text-4xl font-bold">
+                    {formData.firstName?.charAt(0) || formData.lastName?.charAt(0) || 'U'}
+                  </span>
+                )}
               </div>
               <div className="flex flex-col gap-2">
                 <label

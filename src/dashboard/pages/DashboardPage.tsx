@@ -77,11 +77,9 @@ const DashboardPage: React.FC = () => {
                           className="w-full h-full object-cover rounded-full"
                         />
                       ) : (
-                        <img 
-                        src={user.avatar} 
-                        alt={`${user.firstName} ${user.lastName}`}
-                        className="w-full h-full object-cover rounded-full"
-                      />
+                        <span className="text-white text-4xl font-bold">
+                          {user.firstName?.charAt(0) || user.lastName?.charAt(0) || 'U'}
+                        </span>
                       )}
                     </div>
                     <div className="text-center md:text-left flex-1">

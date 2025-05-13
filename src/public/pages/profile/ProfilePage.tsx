@@ -226,11 +226,19 @@ const ProfilePage: React.FC = () => {
 
             {/* Encabezado del perfil */}
             <div className="flex flex-col sm:flex-row items-center gap-6 mb-6">
-              <img
-                src={user.avatar || '/assets/imgs/avatar-placeholder.png'}
-                alt="Avatar"
-                className="w-24 h-24 rounded-full object-cover"
-              />
+              <div className="w-24 h-24 md:w-32 md:h-32 bg-primary rounded-full flex items-center justify-center mb-4 md:mb-0 md:mr-6 overflow-hidden">
+                {user.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={`${user.firstName} ${user.lastName}`}
+                    className="w-full h-full object-cover rounded-full"
+                  />
+                ) : (
+                  <span className="text-white text-4xl font-bold">
+                    {user.firstName?.charAt(0) || user.lastName?.charAt(0) || 'U'}
+                  </span>
+                )}
+              </div>
               <div className="text-center sm:text-left">
                 <h1 className="text-3xl font-bold">{user.firstName} {user.lastName}</h1>
                 <p className="text-gray-400">{user.email}</p>
