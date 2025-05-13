@@ -281,7 +281,7 @@ const EditTutoringModal: React.FC<EditTutoringModalProps> = ({
       if (originalFile) {
         setUploadingImage(true);
         try {
-          imageUrl = await TutoringImageService.uploadTutoringImage(currentUser.id, originalFile);
+          imageUrl = await TutoringImageService.uploadTutoringImage(tutoring.id, originalFile);
           console.log('Imagen subida correctamente:', imageUrl);
         } catch (imageError: any) {
           console.error('Error al subir la imagen:', imageError);

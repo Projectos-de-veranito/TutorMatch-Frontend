@@ -5,13 +5,13 @@ const API_URL = import.meta.env.VITE_TUTORMATCH_BACKEND_URL;
 export const TutoringImageService = {
   /**
    * Sube una imagen para una tutoría al servicio de almacenamiento
-   * @param userId ID del usuario (tutor)
+   * @param tutoringId ID del usuario (tutor)
    * @param file Archivo de imagen a subir
    * @returns URL de la imagen subida
    */
-  uploadTutoringImage: async (userId: string, file: File): Promise<string> => {
+  uploadTutoringImage: async (tutoringId: string, file: File): Promise<string> => {
     try {
-      console.log('Iniciando subida de imagen para usuario:', userId);
+      console.log('Iniciando subida de imagen para usuario:', tutoringId);
       console.log('Archivo:', file.name, 'Tamaño:', file.size, 'Tipo:', file.type);
       
       // Validar el archivo
@@ -29,12 +29,12 @@ export const TutoringImageService = {
       
       // Crear nombre de archivo único para la nueva imagen
       const fileExtension = file.name.split('.').pop() || 'jpg';
-      const uniqueFileName = `tutoring-${userId}-${new Date().getTime()}.${fileExtension}`;
+      const uniqueFileName = `tutoring-${tutoringId}-${new Date().getTime()}.${fileExtension}`;
       
       // Preparar FormData para la subida
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('userId', userId);
+      formData.append('tutoringId', tutoringId);
       formData.append('fileName', uniqueFileName);
       
       console.log('FormData creado con campos:');
@@ -58,7 +58,7 @@ export const TutoringImageService = {
       
       // Obtener la URL de la nueva imagen
       const urlResponse = await axios.get(
-        `${API_URL}/storage/tutoring-images/${userId}/${uniqueFileName}`
+        `${API_URL}/storage/tutoring-images/${tutoringId}/${uniqueFileName}`
       );
       
       console.log('Respuesta del endpoint getImageUrl:', urlResponse.data);
@@ -89,17 +89,17 @@ export const TutoringImageService = {
       return placeholderUrl;
     }
   },
-
+  
   /**
    * Elimina una imagen de tutoría del almacenamiento
-   * @param userId ID del usuario (tutor)
+   * @param tutoringId ID del usuario (tutor)
    * @param fileName Nombre del archivo a eliminar
    * @returns Verdadero si se eliminó correctamente
    */
-  deleteTutoringImage: async (userId: string, fileName: string): Promise<boolean> => {
+  deleteTutoringImage: async (tutoringId: string, fileName: string): Promise<boolean> => {
     try {
       const response = await axios.delete(
-        `${API_URL}/storage/tutoring-images/${userId}/${fileName}`
+        `${API_URL}/storage/tutoring-images/${tutoringId}/${fileName}`
       );
       return response.data?.success || false;
     } catch (error) {

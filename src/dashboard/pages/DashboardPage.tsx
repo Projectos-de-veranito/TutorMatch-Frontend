@@ -109,7 +109,7 @@ const DashboardPage: React.FC = () => {
             {/* Sección de tutorías recomendadas usando el componente especializado */}
             <div className="mb-6">
               <h2 className="text-xl md:text-2xl font-bold text-white mb-4">
-                Tutorías recomendadas para ti
+                Tutorías disponibles para ti
               </h2>
               {recommendedTutorings.length > 0 ? (
                 <TutoringRecommendations

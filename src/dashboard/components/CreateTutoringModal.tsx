@@ -138,8 +138,6 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
     return false;
   };
 
-
-
   // Manejar subida de archivo
   const onFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -199,32 +197,10 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
         }
       }
 
-      // 3. Subir la imagen si existe
-      let imageUrl = '';
-      if (originalFile) {
-        setUploadingImage(true);
-        try {
-          // Usar el servicio actualizado que sigue la misma lógica que la carga de avatares
-          imageUrl = await TutoringImageService.uploadTutoringImage(currentUser.id, originalFile);
-          console.log('Imagen subida correctamente:', imageUrl);
-        } catch (imageError: any) {
-          console.error('Error al subir la imagen:', imageError);
+      // Usar una imagen temporal primero
+      let imageUrl = 'https://media.istockphoto.com/id/1147544807/vector/thumbnail-image-vector-graphic.jpg?s=612x612&w=0&k=20&c=rnCKVbdxqkjlcs3xH87-9gocETqpspHFXu5dIGB4wuM=';
 
-          toast.current?.show({
-            severity: 'error',
-            summary: 'Error',
-            detail: imageError.message || 'No se pudo subir la imagen. Continuando con la creación de la tutoría.',
-            life: 3000,
-          });
-
-          // Continuamos aunque la imagen falle, usando una URL por defecto
-          imageUrl = 'https://media.istockphoto.com/id/1147544807/vector/thumbnail-image-vector-graphic.jpg?s=612x612&w=0&k=20&c=rnCKVbdxqkjlcs3xH87-9gocETqpspHFXu5dIGB4wuM=';
-        } finally {
-          setUploadingImage(false);
-        }
-      }
-
-      // 4. Crear el objeto de tutoría con todos los datos necesarios
+      // 3. Crear el objeto de tutoría con todos los datos necesarios
       const newTutoring = {
         tutorId: currentUser.id,
         courseId: selectedCourse.id,
@@ -232,14 +208,47 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
         description,
         price: Number(price),
         whatTheyWillLearn: formattedWhatTheyWillLearn,
-        imageUrl,
+        imageUrl, // Usamos la imagen temporal por ahora
         availableTimes: availableTimeSlots
       };
 
       console.log('Enviando datos de tutoría:', newTutoring);
 
-      // 5. Guardar la tutoría con el servicio actualizado
+      // 4. Guardar la tutoría con el servicio actualizado
       const createdTutoring = await TutoringService.createTutoring(newTutoring);
+
+      // 5. Ahora que tenemos el ID, subir la imagen si existe
+      if (originalFile && createdTutoring.id) {
+        setUploadingImage(true);
+        try {
+          const uploadedImageUrl = await TutoringImageService.uploadTutoringImage(
+            createdTutoring.id, 
+            originalFile
+          );
+          console.log('Imagen subida correctamente:', uploadedImageUrl);
+          
+          // Actualizar la tutoría con la nueva URL de imagen
+          await TutoringService.updateTutoring(createdTutoring.id, { 
+            imageUrl: uploadedImageUrl 
+          });
+          
+          // Actualizar el objeto local para devolverlo correctamente
+          createdTutoring.imageUrl = uploadedImageUrl;
+        } catch (imageError: any) {
+          console.error('Error al subir la imagen:', imageError);
+
+          toast.current?.show({
+            severity: 'error',
+            summary: 'Error',
+            detail: imageError.message || 'No se pudo subir la imagen, pero la tutoría se creó correctamente.',
+            life: 3000,
+          });
+          
+          // La tutoría ya se creó con la imagen por defecto, así que continuamos
+        } finally {
+          setUploadingImage(false);
+        }
+      }
 
       // 6. Mostrar mensaje de éxito y limpiar el formulario
       toast.current?.show({
