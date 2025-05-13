@@ -177,6 +177,7 @@ export function useAuth() {
         password,
         firstName: userData.firstName,
         lastName: userData.lastName,
+        phone: userData.phone,
         gender: userData.gender,
         semesterNumber: Number(userData.semesterNumber),
         role: userData.role

@@ -84,7 +84,7 @@ export const TutoringImageService = {
       }
       
       // En caso de error, usar una URL por defecto
-      const placeholderUrl = `https://via.placeholder.com/500x300.png?text=Tutoring+Image`;
+      const placeholderUrl = `https://media.istockphoto.com/id/1147544807/vector/thumbnail-image-vector-graphic.jpg?s=612x612&w=0&k=20&c=rnCKVbdxqkjlcs3xH87-9gocETqpspHFXu5dIGB4wuM=`;
       console.log('Usando URL simulada debido al error de subida');
       return placeholderUrl;
     }

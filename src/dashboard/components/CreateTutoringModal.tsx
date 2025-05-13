@@ -218,7 +218,7 @@ const CreateTutoringModal: React.FC<CreateTutoringModalProps> = ({
           });
 
           // Continuamos aunque la imagen falle, usando una URL por defecto
-          imageUrl = 'https://via.placeholder.com/500x300.png?text=Tutoring';
+          imageUrl = 'https://media.istockphoto.com/id/1147544807/vector/thumbnail-image-vector-graphic.jpg?s=612x612&w=0&k=20&c=rnCKVbdxqkjlcs3xH87-9gocETqpspHFXu5dIGB4wuM=';
         } finally {
           setUploadingImage(false);
         }
