@@ -7,6 +7,7 @@ import { User } from '../../user/types/User';
 import { Course } from '../../course/types/Course';
 import { Link } from 'react-router-dom';
 import Avatar from '../../user/components/Avatar';
+import ContactTutorModal from './ContactTutorModal';
 
 //
 import DeleteTutoringModal from '../../dashboard/components/DeleteTutoringModal';
@@ -36,6 +37,7 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
     const [isOwner, setIsOwner] = useState<boolean>(false);
     const [deleteModalVisible, setDeleteModalVisible] = useState<boolean>(false);
     const [editModalVisible, setEditModalVisible] = useState<boolean>(false);
+    const [contactModalVisible, setContactModalVisible] = useState<boolean>(false);
 
     useEffect(() => {
         const checkOwnership = () => {
@@ -244,7 +246,7 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
   `;
 
     return (
-        <div className="text-white w-full bg-[#1e1e1e] min-h-screen">
+        <div className="w-full">
             <Toast ref={toast} />
 
             <DeleteTutoringModal
@@ -409,7 +411,10 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                                         <span>Editar Tutoría</span>
                                     </button>
                                 ) : (
-                                    <button className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4">
+                                    <button 
+                                        className="w-full py-3 bg-[#f05c5c] text-white rounded-lg hover:bg-[#d14949] transition-all my-4"
+                                        onClick={() => setContactModalVisible(true)}
+                                    >
                                         Solicitar Tutoría
                                     </button>
                                 )}
@@ -444,6 +449,13 @@ const TutoringDetails: React.FC<TutoringDetailsProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Modal para contactar al tutor */}
+            <ContactTutorModal 
+                visible={contactModalVisible}
+                onHide={() => setContactModalVisible(false)}
+                tutor={tutor}
+            />
         </div>
     );
 };

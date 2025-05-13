@@ -162,3 +162,28 @@ button:focus-visible {
   color: transparent !important;
   pointer-events: none !important;
 }
+
+/* Añadir estos estilos para el navbar fijo */
+.fixed-navbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  transition: transform 0.3s ease-in-out;
+}
+
+/* Clase para esconder el navbar cuando se scrollea hacia abajo (opcional) */
+.navbar-hidden {
+  transform: translateY(-100%);
+}
+
+/* Asegurar que el contenido no se esconda detrás del navbar */
+.content-with-fixed-navbar {
+  padding-top: 64px; /* Ajustar según la altura exacta del navbar */
+}
+
+/* Hacer que el scroll sea suave */
+html {
+  scroll-behavior: smooth;
+}

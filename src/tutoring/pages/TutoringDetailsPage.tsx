@@ -1,19 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
+import { ProgressSpinner } from 'primereact/progressspinner';
 import TutoringDetails from '../components/TutoringDetails';
-import { TutoringSession, TutoringReview } from '../types/Tutoring';
 import Navbar from '../../dashboard/components/Navbar';
 import Footer from '../../public/components/Footer';
 import { TutoringService } from '../services/TutoringService';
-import { User } from '../../user/types/User';
 import { UserService } from '../../user/services/UserService';
 import { CourseService } from '../../course/services/CourseService';
+import { TutoringSession, TutoringReview } from '../types/Tutoring';
 import { Course } from '../../course/types/Course';
-import { ProgressSpinner } from 'primereact/progressspinner';
+import { User } from '../../user/types/User';
 
 const TutoringDetailsPage: React.FC = () => {
   const { tutoringId } = useParams<{ tutoringId: string }>();
-
   const [tutoring, setTutoring] = useState<TutoringSession | null>(null);
   const [reviews, setReviews] = useState<TutoringReview[]>([]);
   const [tutor, setTutor] = useState<User | null>(null);
@@ -81,8 +80,10 @@ const TutoringDetailsPage: React.FC = () => {
   if (loading) {
     return (
       <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
-        <Navbar />
-        <div className="flex-1 flex items-center justify-center">
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <Navbar />
+        </div>
+        <div className="flex-1 flex items-center justify-center pt-16">
           <div className="text-center">
             <ProgressSpinner style={{ width: '50px', height: '50px' }}
               strokeWidth="4"
@@ -98,26 +99,36 @@ const TutoringDetailsPage: React.FC = () => {
 
   if (error || !tutoring) {
     return (
-      <div className="flex justify-center items-center min-h-screen bg-[#1e1e1e]">
-        <div className="text-center p-6 bg-[#252525] rounded-lg border border-red-500">
-          <h2 className="text-xl text-red-500 mb-4">Error</h2>
-          <p className="text-white">{error || 'No se encontró la tutoría solicitada'}</p>
+      <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <Navbar />
         </div>
+        <div className="flex-1 flex items-center justify-center pt-16">
+          <div className="text-center p-6 bg-[#252525] rounded-lg border border-red-500">
+            <h2 className="text-xl text-red-500 mb-4">Error</h2>
+            <p className="text-white">{error || 'No se encontró la tutoría solicitada'}</p>
+          </div>
+        </div>
+        <Footer />
       </div>
     );
   }
 
   return (
-    <>
-      <Navbar />
-      <TutoringDetails
-        tutoring={tutoring}
-        reviews={reviews}
-        tutor={tutor || undefined}
-        course={course || undefined}
-      />
+    <div className="flex flex-col min-h-screen bg-[#1e1e1e] text-white">
+      <div className="fixed top-0 left-0 right-0 z-50">
+        <Navbar />
+      </div>
+      <div className="pt-16"> {/* Añadir padding-top para compensar el navbar fijo */}
+        <TutoringDetails
+          tutoring={tutoring}
+          reviews={reviews}
+          tutor={tutor || undefined}
+          course={course || undefined}
+        />
+      </div>
       <Footer />
-    </>
+    </div>
   );
 };
 
